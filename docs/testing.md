@@ -17,11 +17,11 @@ npm run test:e2e
 
 `npm run test` is an alias for the unit suite. `npm run test:all` runs every Vitest project, including E2E, in one process; the per-layer commands are easier to diagnose.
 
-Last full verification on **24 October 2026** (Windows 10, Node 26.10.0, Electron 44.9.3):
+Last full verification on **26 October 2026** (Windows 10, Node 26.10.0, Electron 44.9.3):
 
 | Layer | Tests | Result |
 | --- | ---: | --- |
-| Unit | 131 | 131 passed |
+| Unit | 137 | 137 passed |
 | UI (React Testing Library) | 12 | 12 passed |
 | Integration | 17 | 17 passed |
 | End-to-end (Playwright + Electron) | 5 | 5 passed |
@@ -34,9 +34,10 @@ Counts are a snapshot. Add tests with behavior changes; do not preserve a count 
 
 ### Unit — pure logic, no Electron, no binaries
 
-`tests/unit/` (10 files):
+`tests/unit/` (11 files):
 
-- **Frame planning** — hold-last-frame resampling, start offsets, late streams, empty captures, duplicate runs, measured capture rate, `CAPTURE_RATE_LOW`.
+- **Frame planning** — nearest-frame resampling, start offsets, late streams, empty captures, duplicate runs, measured capture rate, `CAPTURE_RATE_LOW` at 90 % of the requested rate.
+- **Frame store** — unique file numbers when writes overlap, counter reset on init, configured extension.
 - **Encoding** — exact FFmpeg argument construction, overwrite/start number, progress-line parsing, ffprobe JSON parsing, nine validation checks, duration tolerance, blank/still frame analysis.
 - **Network policy** — IPv4 and IPv6 private ranges, mapped/compatible/NAT64/6to4/Teredo forms, special hostnames, project origin, remote opt-in, method and scheme rules, navigation policy.
 - **Archive guard** — path normalisation, traversal, ADS, Windows-hostile names, symlink mode bits and reparse attributes, size budgets, entry selection, containment.
@@ -91,8 +92,8 @@ The integration global setup empties `.test-out/integration` before the run. Fil
 `tests/e2e/app.test.ts` launches the built Electron app with `_electron` from Playwright:
 
 1. the empty studio loads and the engine reports ready;
-2. the bundled example imports, the live `WebContentsView` is active at 1920×1080, and a desktop screenshot is captured for evidence;
-3. a 720p, 1.5 s export is produced, checked with ffprobe (H.264, yuv420p, 1280×720, 30/1, 45 frames, duration 1.5) and inspected on the result screen with five loaded posters;
+2. the bundled example imports, the live `WebContentsView` is active at the default 1280×720, and a desktop screenshot is captured for evidence;
+3. a 720p, 1.5 s export is produced, checked with ffprobe (H.264, yuv420p, 1280×720, 60/1, 90 frames, duration 1.5) and inspected on the result screen with five loaded posters;
 4. a second export with the same name shows the overwrite confirmation, does **not** start a job, leaves the old file untouched, then replaces it after confirmation;
 5. an 8 s export is cancelled at about 700 ms, the Portuguese cancellation notice appears, no MP4 is left, and the original example is byte-identical.
 
@@ -121,7 +122,7 @@ The script spawns the executable directly with a loopback DevTools port and conn
 
 ## Acceptance export
 
-The development acceptance case is the five-scene, 36.5-second 1280×720 `Brisa · Vídeo de produto.html` at the workspace root. It is not copied into the repository. Its Google Fonts request requires **Permitir recursos externos**, which the harness enables before importing. The final verified run, repeated after the single-HTML real-path hardening and the secure network default, produced 1,095 frames, H.264 High, `yuv420p`, 1,786,764 bytes, 36.500000 s and nine of nine checks; frames at 2, 6, 14, 24, 31 and 35.5 seconds were visually inspected. The source file's size and SHA-256 were identical before and after. See the final report for the exact commands and evidence.
+The development acceptance case is the five-scene, 36.5-second 1280×720 `Brisa · Vídeo de produto.html` at the workspace root. It is not copied into the repository. Its Google Fonts request requires **Permitir recursos externos**, which the harness enables before importing. The final verified run, at 60 fps, produced 2,190 frames, H.264 High, `yuv420p`, 2,291,976 bytes (SHA-256 `9501D66C8477E8C525D39339B503E800288F3A5E6F79C0596793DDB53853F80B`), 36.500000 s, `r_frame_rate 60/1` and nine of nine checks, with no `CAPTURE_RATE_LOW`; frames at 2, 6, 14, 24, 31 and 35.5 seconds were visually inspected. `mpdecimate` counts 1,098 distinct moments in that file against 361 in the earlier 30 fps export. The source file's size and SHA-256 were identical before and after. See the final report for the exact commands and evidence.
 
 ## What is not tested
 

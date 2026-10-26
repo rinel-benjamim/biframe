@@ -32,7 +32,7 @@ The production host is Electron; integration tests pass a scripted host. Everyth
 | Phase | What actually happens | Progress |
 | --- | --- | --- |
 | `preparing` | Resolve FFmpeg/FFprobe, validate output directory, check existing file, estimate disk use, create the frame store. | 0 % |
-| `launching` | Create the capture session (offscreen Chromium, debugger, device metrics, instrumentation). | 2 % |
+| `launching` | Create the capture session (off-desktop Chromium window, debugger, device metrics, instrumentation). | 2 % |
 | `loading` | Load the entry URL, wait for `load`, wait for fonts/images/layout to settle (bounded to 8 s), inspect the page. | 4–6 % |
 | `capturing` | Start CDP screencast, reload, find the first animation activity, capture until the duration ends. | 6–78 % (time-based, with captured/target frame counts) |
 | `resampling` | Build the CFR plan and materialise the numbered sequence. | 80 % |
@@ -69,9 +69,10 @@ If the instrumentation is blocked or unavailable, the engine approximates the st
 
 ## Capture
 
-The production capture session is an offscreen `BrowserWindow`:
+The production capture session is a sandboxed `BrowserWindow` driven by the native compositor on Windows:
 
-- `offscreen: true`, `backgroundThrottling: false`;
+- a frameless window parked left of the union of every display, non-focusable, mouse-transparent, shown without activation (`paintWhenInitiallyHidden: true`); if the OS rejects the position it falls back to full transparency. `disable-features=CalculateNativeWinOcclusion` keeps Chromium from throttling an off-desktop window. Other platforms use `offscreen: true` with software compositing, which measured 27–33 fps against the native compositor's 56–58 fps on the target machine;
+- `backgroundThrottling: false`;
 - `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`;
 - no preload, no webviews, dialogs disabled, DevTools disabled;
 - audio muted;
@@ -79,7 +80,7 @@ The production capture session is an offscreen `BrowserWindow`:
 - CDP `Emulation.setDeviceMetricsOverride` at exactly the requested width and height, `deviceScaleFactor: 1`;
 - zoom forced to 1 because Chromium stores zoom per origin in the shared session and the preview zooms the page to fit its stage.
 
-Frames arrive through `Page.startScreencast` as JPEG quality 92. Each frame is acknowledged immediately, and the host clock timestamp is recorded when the frame arrives. JPEG was chosen over PNG because it is the codec Chromium's screencast produces natively and the quality/size trade-off is appropriate for an intermediate that is immediately re-encoded. See [ADR 0004](adr/0004-capture-strategy.md).
+Frames arrive through `Page.startScreencast` (`format: 'jpeg'`, quality 92, `fromSurface: true`) as JPEG quality 92. Each frame is acknowledged immediately, and the frame is stamped with the **presentation timestamp from the CDP metadata** (accepted only within 5 s of the host clock, kept monotonic); host arrival time is the fallback. Arrival time alone is wrong exactly when it matters: after a main-process stall, a burst of frames arrives stamped with nearly the same instant and the resampler would repeat one frame through a fast transition. JPEG was chosen over PNG because it is the codec Chromium's screencast produces natively and the quality/size trade-off is appropriate for an intermediate that is immediately re-encoded. See [ADR 0004](adr/0004-capture-strategy.md).
 
 ### Why not deterministic seek?
 
@@ -87,25 +88,26 @@ The protocol reserves `deterministic`, `onStart(cb)` and `onSeek(seconds)` for a
 
 ### Frame rate reality
 
-CDP screencast does not guarantee the requested FPS. The engine measures the delivered rate from frame timestamps. If it is below 75 % of the requested rate, it emits `CAPTURE_RATE_LOW` with the measured value and the number of repeated frames. A page that takes 100 ms to paint a frame cannot be made to produce 60 unique frames per second by asking FFmpeg for 60 fps.
+CDP screencast does not guarantee the requested FPS. The engine measures the delivered rate from frame timestamps. If it is below 90 % of the requested rate (below 54 fps for a 60 fps request), it emits `CAPTURE_RATE_LOW` with the measured value and the number of repeated frames. A page that takes 100 ms to paint a frame cannot be made to produce 60 unique frames per second by asking FFmpeg for 60 fps.
 
 ## Frame resampling
 
-`buildFramePlan` implements a hold-last-frame policy:
+`buildFramePlan` picks the source frame **nearest** to each target instant:
 
 ```text
 targetFrames = max(1, round(fps × durationMs / 1000))
 for each target index i:
     targetTime = startMs + i × 1000 / fps
-    choose the latest source frame with t <= targetTime
+    choose the source frame with t nearest to targetTime (ties keep the earlier frame)
 ```
 
-- The first target frame uses the earliest usable frame.
-- Gaps repeat the most recent frame. Time is never stretched and the output duration stays exact.
+- The nearest-frame rule keeps motion evenly spaced. The previous hold-last rule put every target one whole capture interval behind the page — during a fast transition each target fell just short of the next real frame and repeated the previous one, which is what visible stutter looks like. Ties keep the earlier frame, so the timeline never plays content from the future.
+- Gaps still repeat the nearest frame. Content is duplicated, never interpolated, and the output duration stays exact.
+- Source frames are ordered by presentation timestamp and each plan index points back at the original position, so a stream whose disk writes finish out of order still resamples against a monotonic timeline.
 - Frames older than `startMs` are excluded, unless no frame qualifies; then the earliest pool is used so the render fails later with a real diagnostic rather than producing zero frames.
 - `planToRuns` groups consecutive duplicates so the frame store can hardlink instead of copying. The encoder still sees one file per CFR frame.
 
-`FrameStore` writes source frames during capture, then materialises the plan as `cfr/%06d.jpg`. Duplicate runs are hardlinked where the filesystem permits, falling back to copies. Source frames remain on disk unless `keepTempFiles` is enabled. Only paths and timestamps stay in memory, so a long 4K capture does not grow the heap with image data.
+`FrameStore` writes source frames during capture — reserving each file number synchronously, before the write is awaited, so two frames in flight cannot share a path — then materialises the plan as `cfr/%06d.jpg`. Duplicate runs are hardlinked where the filesystem permits, falling back to copies. Source frames remain on disk unless `keepTempFiles` is enabled. Only paths and timestamps stay in memory, so a long 4K capture does not grow the heap with image data.
 
 ## Encoding
 
@@ -179,8 +181,8 @@ Cancellation is tested end-to-end: during an 8-second capture, the test cancels 
 
 Measured on the target development machine (Windows 10, Intel i5-6200U, 8 GB RAM, 1366×768 display):
 
-- 3 s 1080p example: exported and validated (9/9 checks).
-- Full 36.5 s 1280×720 acceptance page: 57–71 s total across runs (≈38–42 s capture, ≈14–22 s encode and validation), 1,095 frames, 1.6–1.8 MB output at CRF 17 (High). The spread reflects background load on the same machine; capture itself is real time.
-- Packaged 1.5 s 720p smoke clip: 45 frames, 27 KB, 9/9 checks.
+- 3 s 1080p example: exported and validated (9/9 checks). At 1080p the native compositor reaches ≈26.5 fps, so 60 fps output would need visible duplication — 720p is the default for that reason and 1080p stays one click away.
+- Full 36.5 s 1280×720 acceptance page at 60 fps: 2,190 frames, 2.29 MB output at CRF 17 (High), all nine checks green, no `CAPTURE_RATE_LOW` (capture sustained ≥54 fps). `mpdecimate` counts 1,098 distinct moments versus 361 in the previous 30 fps export.
+- Packaged 1.5 s 720p smoke clip: 90 frames at 60 fps, 33 KB, 9/9 checks.
 
-These are observations, not guarantees. Rendering is real time by design; a 36-second animation always takes at least 36 seconds to capture, plus encoding.
+These are observations, not guarantees. Rendering is real time by design; a 36-second animation always takes at least 36 seconds to capture, plus encoding. The in-app capture rate of the bundled example varies with system load (28–49 fps observed); when it falls below 90 % of the requested rate the UI reports `CAPTURE_RATE_LOW` and the duplicate count honestly.

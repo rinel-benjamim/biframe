@@ -22,7 +22,7 @@ The boundaries are enforced by imports, tsconfig project references and dependen
 │  │ project origin only │                            │                 │
 │  └────────────────────┘                            │                 │
 │                                                     │                 │
-│  ┌────────────────────┐   offscreen Window + CDP    │                 │
+│  ┌────────────────────┐   off-desktop Window + CDP  │                 │
 │  │ Capture renderer    │ ◀──────────────────────────┤                 │
 │  │ project origin only │                            ▼                 │
 │  └────────────────────┘                  ┌────────────────────────┐  │
@@ -61,13 +61,13 @@ Services:
 | `RenderService` | Job lifecycle, one render at a time, progress events, cancellation, history, poster pruning. |
 | `SettingsStore` / `HistoryStore` | Atomic JSON persistence with defaults and validation. |
 | `EngineStatus` | Resolves bundled FFmpeg/FFprobe, checks versions and temporary-space writability. |
-| `ElectronCaptureHost` | Implements the engine's `CaptureSessionHost` using offscreen Chromium and CDP. |
+| `ElectronCaptureHost` | Implements the engine's `CaptureSessionHost` using a native off-desktop Chromium window (software offscreen elsewhere) and CDP. |
 
 ### Engine (pure orchestration)
 
 `src/engine/render/pipeline.ts` receives a `CaptureSessionHost`, a `CancellationToken`, an `emit` callback and plain input. It knows nothing about windows, IPC or React. The same pipeline runs in integration tests with a scripted capture host and real FFmpeg.
 
-- `frame-plan.ts` — hold-last-frame resampling to CFR.
+- `frame-plan.ts` — nearest-frame resampling to CFR.
 - `frame-store.ts` — frame files and materialisation; hardlinks runs when possible.
 - `encoding/` — argument construction, progress parsing, ffprobe parsing, validation and blank/still analysis.
 - `media/binaries.ts` — bundled/system resolution and child-process execution with timeouts and signals.
@@ -80,7 +80,7 @@ Services:
 1. The user submits `RenderSettings`; the main process validates them with Zod and checks `OUTPUT_EXISTS` before creating a job.
 2. `RenderService` registers a running job and calls `runRenderPipeline`.
 3. The pipeline resolves binaries, checks the output directory and free space, and creates a per-job frame store under `userData/temp/frames/<jobId>`.
-4. `ElectronCaptureHost` creates a hidden, offscreen `BrowserWindow` at `width × height`, with no preload, shared gateway session, device metrics override and a reload-safe instrumentation script.
+4. `ElectronCaptureHost` creates a `BrowserWindow` at `width × height` that lives outside the desktop (native window parked off-screen on Windows, `offscreen: true` elsewhere), with no preload, shared gateway session, device metrics override and a reload-safe instrumentation script.
 5. The page loads once for inspection (fonts, broken images, protocol, media), then the pipeline starts CDP screencast, reloads and waits for the first observable animation activity (`requestAnimationFrame`, timer, paint or DOM content loaded).
 6. Frames stream to disk with host timestamps. Frames before the start instant are queued/discarded by the host. Capture runs until the requested duration, the protocol duration, or `biframe:complete`.
 7. The plan maps every target CFR instant to the latest available source frame. Missing gaps repeat the last frame; the timeline is never stretched.

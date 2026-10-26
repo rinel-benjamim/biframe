@@ -57,7 +57,7 @@ Main window and preview view:
 
 The capture window is additionally:
 
-- offscreen, framed off, skipped from the taskbar;
+- off-desktop: on Windows a native window parked outside every display, non-focusable and mouse-transparent (it falls back to full transparency if the OS rejects the position); elsewhere offscreen, framed off; skipped from the taskbar either way;
 - audio muted;
 - dialogs disabled;
 - no Node integration in sub-frames;

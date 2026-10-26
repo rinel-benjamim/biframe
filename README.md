@@ -22,8 +22,8 @@ Handing a client a video of an HTML animation usually means recording the screen
 | Area | Supported |
 | --- | --- |
 | Input | Single `.html` / `.htm` / `.xhtml` with local assets, or a `.zip` project |
-| Geometry | 720p, 1080p, 1440p, 4K, 1080×1920, 1080×1080, 1080×1350, custom even sizes up to 3840 |
-| Motion | 24, 25, 30, 50 or 60 fps |
+| Geometry | 720p (default), 1080p, 1440p, 4K, 1080×1920, 1080×1080, 1080×1350, custom even sizes up to 3840 |
+| Motion | 24, 25, 30, 50 or 60 fps (60 default — matches the display the page is animated on) |
 | Duration | Manual, or automatic through the optional [page protocol](docs/page-protocol.md) |
 | Output | MP4, H.264 High profile, `yuv420p`, `+faststart`, AAC-free |
 | Quality | CRF 26 / 21 / 17 with matching x264 presets |
@@ -101,7 +101,7 @@ If a file with the same name exists, Biframe asks before replacing it. Importing
 
 ![Biframe result screen: a validated 8-second 720p MP4, its output sheet, five frames extracted from the file and nine passing validation checks](docs/assets/result.png)
 
-The sheet above is the real outcome of the bundled example in automatic-duration mode: the page declared 8 seconds, Biframe captured 240 frames at 30 fps, FFmpeg encoded H.264 High with `yuv420p`, and `ffprobe` passed all nine checks. The five stills at the bottom are extracted from the encoded file, not from the live page.
+The sheet above is the real outcome of the bundled example in automatic-duration mode: the page declared 8 seconds, Biframe captured 480 frames at 60 fps, FFmpeg encoded H.264 High with `yuv420p`, and `ffprobe` passed all nine checks. The five stills at the bottom are extracted from the encoded file, not from the live page. The Diagnóstico section shows what the session really delivered (49.2 fps on that run, with the count of repeated frames) instead of hiding it.
 
 ## How it works
 
@@ -114,9 +114,9 @@ Electron main process
    ├─ PreviewService     WebContentsView at export geometry, shared locked-down session
    ├─ RenderService      one job at a time, real progress, cancellation
    └─ engine (no Electron imports)
-        ├─ ElectronCaptureHost   offscreen Chromium + CDP Page.startScreencast (JPEG)
+        ├─ ElectronCaptureHost   off-desktop Chromium (native compositor) + CDP Page.startScreencast (JPEG)
         ├─ FrameStore            timestamped frames on disk
-        ├─ frame-plan            hold-last-frame resampling to exact CFR
+        ├─ frame-plan            nearest-frame resampling to exact CFR
         ├─ FFmpeg                libx264, High profile, yuv420p, faststart
         └─ ffprobe               nine checks, diagnostics, five poster stills
 ```
@@ -200,7 +200,7 @@ Custom dimensions must be even and between 64 and 3840 pixels. Durations must be
 - **The page is blank in preview but the file exists.** The preview is suspended when the stage is scrolled out of view; scroll back to it or press **Recarregar**.
 - **The export says the page never signalled completion.** Use a manual duration, or add `window.biframe.duration` / the `biframe:complete` event.
 - **Some assets built by JavaScript are missing after importing a single HTML file.** A static scan cannot follow runtime-constructed paths. Import the project as a ZIP instead.
-- **The result has duplicated frames.** The compositor delivered fewer frames than the requested FPS; Biframe reports `CAPTURE_RATE_LOW` and holds the latest frame rather than stretching time.
+- **The result has duplicated frames.** The compositor delivered fewer frames than the requested FPS; below 90 % of the request Biframe reports `CAPTURE_RATE_LOW` and repeats the nearest frame rather than stretching time. 60 fps is the default because it matches the display, but a heavy page on a slow machine may realistically deliver less.
 - **Logs.** Definições → **Registos** opens the log directory.
 
 ## Contributing, security, licence
