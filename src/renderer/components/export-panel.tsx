@@ -376,10 +376,13 @@ export function ExportPanel(): ReactNode {
             >
               {FPS_OPTIONS.map((fps) => (
                 <option value={fps} key={fps}>
-                  {fps} fps{fps === 30 ? ' — padrão web' : fps === 60 ? ' — movimento fluido' : ''}
+                  {fps} fps{fps === 60 ? ' — recomendado' : fps === 30 ? ' — compatibilidade' : ''}
                 </option>
               ))}
             </select>
+            <span className="field__note">
+              60 fps acompanha o ecrã e mantém as transições tão fluidas como no navegador.
+            </span>
           </div>
 
           <div className="field">
