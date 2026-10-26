@@ -138,7 +138,7 @@ try {
   assert.equal(video?.pix_fmt, 'yuv420p');
   assert.equal(video?.width, 1280);
   assert.equal(video?.height, 720);
-  assert.equal(video?.nb_frames, '45');
+  assert.equal(video?.nb_frames, '90');
 
   console.log('packaged smoke test passed');
   if (logs.length > 0) console.log(logs.slice(-20).join('\n'));

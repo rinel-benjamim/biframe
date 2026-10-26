@@ -131,8 +131,8 @@ describe('Biframe desktop application', () => {
 
     expect(await page.locator('.rail__project-name').first().textContent()).toContain('exemplo-biframe.html');
     expect(await page.locator('.page-head h1').textContent()).toContain('exemplo-biframe.html');
-    // The draft starts at the app default (1080p) before any export options are changed.
-    expect(await page.locator('.stage__bar').textContent()).toContain('1920 × 1080');
+    // The draft starts at the app default (720p at 60 fps) before any export options are changed.
+    expect(await page.locator('.stage__bar').textContent()).toContain('1280 × 720');
 
     // The preview is a real WebContentsView; the UI marks it live only when it
     // is fully visible and the page has loaded.
@@ -177,8 +177,8 @@ describe('Biframe desktop application', () => {
     expect(video?.pix_fmt).toBe('yuv420p');
     expect(video?.width).toBe(1280);
     expect(video?.height).toBe(720);
-    expect(video?.r_frame_rate).toBe('30/1');
-    expect(Number(video?.nb_frames)).toBe(45);
+    expect(video?.r_frame_rate).toBe('60/1');
+    expect(Number(video?.nb_frames)).toBe(90);
     expect(Number(info.format.duration)).toBeCloseTo(1.5, 1);
 
     await captureDesktop('03-result.png');

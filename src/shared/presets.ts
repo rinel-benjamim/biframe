@@ -12,8 +12,20 @@ export const MIN_DURATION_SECONDS = 0.5;
 export const MAX_DURATION_SECONDS = 600;
 export const FPS_OPTIONS = [24, 25, 30, 50, 60] as const;
 export type FpsValue = (typeof FPS_OPTIONS)[number];
-export const DEFAULT_FPS: FpsValue = 30;
+/**
+ * 60 fps by default: it matches the refresh rate of the display the page is
+ * animated on, so exported transitions keep the cadence the browser shows.
+ * 30 fps remains available for compatibility and smaller files.
+ */
+export const DEFAULT_FPS: FpsValue = 60;
 export const MAX_FPS = 60;
+/**
+ * 1280 × 720 by default: on the reference machine (Intel i5-6200U) capture
+ * reaches 56–58 fps at 720p but only ~26.5 fps at 1080p, which cannot fill a
+ * 60 fps timeline without visible duplication. 1080p stays one click away.
+ */
+export const DEFAULT_WIDTH = 1280;
+export const DEFAULT_HEIGHT = 720;
 
 export const ASPECT_RATIOS: { id: AspectRatioId; label: string; ratio: number }[] = [
   { id: '16:9', label: '16:9', ratio: 16 / 9 },
@@ -139,8 +151,8 @@ export function defaultRenderSettings(outputDir: string, fileName = 'biframe-exp
   return {
     fileName,
     outputDir,
-    width: 1920,
-    height: 1080,
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
     fps: DEFAULT_FPS,
     duration: { mode: 'manual', seconds: 10 },
     quality: DEFAULT_QUALITY,

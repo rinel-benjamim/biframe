@@ -9,6 +9,7 @@ import {
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import type { PreviewBounds, RenderJob } from '@shared/types';
 import { formatMilliseconds, formatNumber, formatSeconds, pluralize } from '@shared/format';
+import { DEFAULT_FPS } from '@shared/presets';
 import { getBridge } from '../lib/api';
 import { useAppActions, useAppState } from '../lib/store';
 import { Spinner } from './ui';
@@ -209,7 +210,7 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
         <span className="stage__bar-sep" aria-hidden="true">
           ·
         </span>
-        <span className="tnum">{draft?.fps ?? 30} fps</span>
+        <span className="tnum">{draft?.fps ?? DEFAULT_FPS} fps</span>
         <span className="stage__bar-sep" aria-hidden="true">
           ·
         </span>
