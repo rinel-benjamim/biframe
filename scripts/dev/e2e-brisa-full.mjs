@@ -67,7 +67,7 @@ await desktop('brisa-full-1-studio.png');
 await page.locator('#export-output-dir').fill(outputDir);
 await page.locator('#export-file-name').fill('brisa-completo.mp4');
 await page.locator('#export-resolution').selectOption('720p');
-await page.locator('#export-fps').selectOption('30');
+await page.locator('#export-fps').selectOption('60');
 await page.locator('#export-duration').fill('36.5');
 await page.locator('input[name="export-quality"][value="high"]').check();
 console.log('estimate', await page.locator('.estimate').innerText());
