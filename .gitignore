@@ -1,0 +1,16 @@
+node_modules/
+out/
+release/
+dist/
+coverage/
+.tmp/
+.poc-out/
+.test-out/
+.taste-skill/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

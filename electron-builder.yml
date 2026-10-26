@@ -1,0 +1,38 @@
+{
+  "appId": "app.biframe.desktop",
+  "productName": "Biframe",
+  "copyright": "Copyright © 2026 Biframe contributors",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "out/**/*",
+    "package.json",
+    "!**/*.map",
+    "!node_modules/playwright/**",
+    "!node_modules/playwright-core/**"
+  ],
+  "asarUnpack": ["node_modules/ffmpeg-static/**", "node_modules/ffprobe-static/**"],
+  "extraResources": [{ "from": "resources/example", "to": "example" }],
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "build/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "perMachine": false,
+    "shortcutName": "Biframe"
+  },
+  "mac": {
+    "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+    "category": "public.app-category.video",
+    "icon": "build/icon.icns"
+  },
+  "linux": {
+    "target": [{ "target": "AppImage", "arch": ["x64"] }],
+    "category": "AudioVideo",
+    "icon": "build/icon.png"
+  }
+}
