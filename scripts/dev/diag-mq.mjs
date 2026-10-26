@@ -1,0 +1,22 @@
+import { _electron as electron } from 'playwright';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+
+const root = process.cwd();
+const out = path.join(root, '.poc-out');
+const profile = path.join(out, 'profile-mq');
+await fs.rm(profile, { recursive: true, force: true });
+const app = await electron.launch({ args: ['.'], cwd: root, env: { ...process.env, BIFRAME_USER_DATA_DIR: profile, BIFRAME_DISABLE_DEVTOOLS: '1' } });
+const page = await app.firstWindow();
+await page.waitForSelector('.app', { timeout: 60_000 });
+await page.waitForTimeout(1500);
+const before = await page.evaluate(() => ({ mq: matchMedia('(prefers-color-scheme: dark)').matches, scheme: getComputedStyle(document.documentElement).colorScheme, theme: document.documentElement.dataset.theme }));
+await page.evaluate(() => { document.documentElement.style.colorScheme = 'dark'; });
+await page.waitForTimeout(300);
+const after = await page.evaluate(() => ({ mq: matchMedia('(prefers-color-scheme: dark)').matches, scheme: getComputedStyle(document.documentElement).colorScheme }));
+console.log({ before, after });
+console.log(await app.evaluate(({ nativeTheme }) => ({ dark: nativeTheme.shouldUseDarkColors, source: nativeTheme.themeSource })));
+await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'dark'; });
+await page.waitForTimeout(500);
+console.log('forced dark', await page.evaluate(() => ({ mq: matchMedia('(prefers-color-scheme: dark)').matches, theme: document.documentElement.dataset.theme })));
+await app.close();

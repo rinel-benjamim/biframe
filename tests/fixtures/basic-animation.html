@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Biframe fixture · basic animation</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #101014; overflow: hidden; font-family: system-ui, sans-serif; }
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+  .box { width: 160px; height: 160px; background: #625BFF; animation: slide 3s cubic-bezier(.2,.8,.2,1) infinite alternate; }
+  @keyframes slide { from { transform: translateX(-320px) rotate(0deg); } to { transform: translateX(320px) rotate(90deg); } }
+  .label { position: absolute; left: 48px; top: 48px; color: #fff; font-size: 42px; font-weight: 700; letter-spacing: -0.02em; }
+  .counter { position: absolute; left: 48px; bottom: 48px; color: #8B8B95; font-size: 22px; font-variant-numeric: tabular-nums; }
+  canvas { position: absolute; right: 48px; bottom: 48px; width: 180px; height: 180px; }
+</style>
+</head>
+<body>
+  <div class="stage"><div class="box"></div></div>
+  <div class="label">Biframe fixture</div>
+  <div class="counter" id="counter">0</div>
+  <canvas id="c" width="180" height="180"></canvas>
+  <script>
+    const counter = document.getElementById('counter');
+    const t0 = performance.now();
+    function tick(t) {
+      const elapsed = t - t0;
+      counter.textContent = (elapsed / 1000).toFixed(2) + ' s';
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    const ctx = document.getElementById('c').getContext('2d');
+    function draw(t) {
+      const p = ((t - t0) % 3000) / 3000;
+      ctx.clearRect(0, 0, 180, 180);
+      ctx.fillStyle = '#1B1B22';
+      ctx.fillRect(0, 0, 180, 180);
+      ctx.fillStyle = '#625BFF';
+      ctx.beginPath();
+      ctx.arc(90, 90, 20 + 60 * p, 0, Math.PI * 2);
+      ctx.fill();
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
