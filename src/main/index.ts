@@ -31,6 +31,14 @@ if (userDataOverride) app.setPath('userData', path.resolve(userDataOverride));
 // the services that own the files exist.
 registerMediaScheme();
 
+// The capture window is driven by the native compositor but lives outside the
+// desktop. Chromium's Windows occlusion tracker would classify it as invisible
+// and throttle it to a few frames per second, which would show up as stutter in
+// the exported video, so occlusion is not calculated for this process.
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+}
+
 let logger: Logger | null = null;
 let renderService: RenderService | null = null;
 let projectService: ProjectService | null = null;

@@ -1,4 +1,4 @@
-import { BrowserWindow, type WebContents } from 'electron';
+import { BrowserWindow, screen, type Rectangle, type WebContents } from 'electron';
 import { BiframeError } from '@shared/errors';
 import { parseProtocolDescriptor, type ProtocolDescriptor } from '@shared/protocol';
 import type { Diagnostic } from '@shared/types';
@@ -30,19 +30,26 @@ import type { ContentGateway } from '../content-session';
 import type { Logger } from '../log';
 
 /**
- * The production capture implementation: a hidden, sandboxed, offscreen
- * BrowserWindow whose compositor output is streamed to disk through CDP
- * `Page.startScreencast`.
+ * The production capture implementation: a sandboxed BrowserWindow whose
+ * compositor output is streamed to disk through CDP `Page.startScreencast`.
+ *
+ * On Windows the window uses the native compositor and is placed completely
+ * outside the desktop, then shown without activation. Electron's
+ * `offscreen: true` path uses software compositing: on the target machine it
+ * delivered 27–33 fps at 720p, while native compositing delivered 56–58 fps.
+ * The native window is never visible (it is outside the union of every display
+ * and has no taskbar entry), never takes focus and ignores the mouse. If the
+ * position is rejected, it falls back to a fully transparent window.
  *
  * Why screencast and not `paint` events: measured on the target machine, paint
  * events block the main process (p95 main-loop jitter 252 ms, which visibly
- * stretches the animation), while screencast delivers ~40 fps with p95 jitter
- * under 50 ms. See docs/adr/0004-capture-strategy.md.
+ * stretches the animation), while screencast keeps jitter low. See
+ * docs/adr/0004-capture-strategy.md.
  *
- * The window is offscreen, has no preload, no Node integration, remote modules
- * disabled at the session level and every navigation outside the loopback
- * project origin cancelled, so an imported page behaves like any web page in a
- * sandbox and nothing else.
+ * The window has no preload, no Node integration, remote modules disabled at
+ * the session level and every navigation outside the loopback project origin
+ * cancelled, so an imported page behaves like any web page in a sandbox and
+ * nothing else.
  */
 
 interface ProbeSnapshot {
@@ -84,8 +91,27 @@ const MAX_QUEUED_FRAMES = 400;
 const PROBE_POLL_INTERVAL_MS = 80;
 const PROBE_WAIT_MS = 2500;
 
+/**
+ * Electron's `offscreen: true` windows are composited on the CPU. On the
+ * target machine that caps CDP screencast at 27–33 fps at 1280×720, while a
+ * real window driven by the native compositor reaches 56–58 fps. Windows is
+ * therefore captured with a native window parked outside the desktop; other
+ * platforms keep the old, software-composited window until they can be
+ * measured the same way.
+ */
+const USE_NATIVE_COMPOSITOR = process.platform === 'win32';
+
 function isDetailsObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && 'errorCode' in (value as Record<string, unknown>);
+}
+
+function intersectsDisplay(bounds: Rectangle, display: Rectangle): boolean {
+  return (
+    bounds.x < display.x + display.width &&
+    bounds.x + bounds.width > display.x &&
+    bounds.y < display.y + display.height &&
+    bounds.y + bounds.height > display.y
+  );
 }
 
 export interface CaptureHostOptions {
@@ -136,14 +162,19 @@ class ElectronCaptureSession implements CaptureSession {
     this.gateway.setPolicy(this.optionsPolicy());
     const window = new BrowserWindow({
       show: false,
+      // Keep painting as soon as content loads, even before the first show.
+      paintWhenInitiallyHidden: true,
       width: this.options.width,
       height: this.options.height,
       useContentSize: true,
       frame: false,
       backgroundColor: '#000000',
       skipTaskbar: true,
+      // A native capture window must never steal focus from the studio.
+      ...(USE_NATIVE_COMPOSITOR ? { focusable: false } : {}),
       webPreferences: {
-        offscreen: true,
+        // Native compositing on Windows; software offscreen elsewhere.
+        offscreen: !USE_NATIVE_COMPOSITOR,
         backgroundThrottling: false,
         sandbox: true,
         contextIsolation: true,
@@ -165,6 +196,7 @@ class ElectronCaptureSession implements CaptureSession {
     this.gateway.addSink(window.webContents.id, (input) => {
       this.collector.add(input);
     });
+    if (USE_NATIVE_COMPOSITOR) this.showNativeCompositor(window);
 
     await window.loadURL('about:blank');
     await this.attachDebugger();
@@ -177,6 +209,40 @@ class ElectronCaptureSession implements CaptureSession {
 
   private optionsPolicy(): { projectOrigin: string; allowRemote: boolean } {
     return { projectOrigin: this.options.origin, allowRemote: this.options.allowRemote };
+  }
+
+  /**
+   * Parks the capture window left of the union of every display and shows it
+   * without activation. The compositor then runs at refresh rate, but nothing
+   * is visible on any screen, there is no taskbar entry and the studio keeps
+   * focus. If the OS ignores the position, the window is made fully
+   * transparent: it composites a little slower, but it cannot be seen.
+   */
+  private showNativeCompositor(window: BrowserWindow): void {
+    try {
+      const displays = screen.getAllDisplays();
+      if (displays.length === 0) return;
+      const left = Math.min(...displays.map((display) => display.bounds.x));
+      const top = Math.min(...displays.map((display) => display.bounds.y));
+      window.setIgnoreMouseEvents(true);
+      const before = window.getBounds();
+      window.setPosition(left - before.width - 64, top, false);
+      window.showInactive();
+      const placed = window.getBounds();
+      const overlaps = displays.some((display) => intersectsDisplay(placed, display.bounds));
+      if (overlaps) {
+        window.setOpacity(0);
+        this.logger.log('warn', 'capture window overlapped a display; using transparency', { placed });
+      }
+      this.logger.log('info', 'native capture compositor started', {
+        placed,
+        displays: displays.length,
+        transparent: overlaps,
+      });
+    } catch (error) {
+      // The window simply stays hidden: capture still works, only slower.
+      this.logger.log('warn', 'could not position the capture window', { error: String(error) });
+    }
   }
 
   private registerContentsEvents(contents: WebContents): void {
@@ -456,6 +522,7 @@ class ElectronCaptureSession implements CaptureSession {
         maxWidth: this.options.width,
         maxHeight: this.options.height,
         everyNthFrame: 1,
+        fromSurface: true,
       });
     } catch (error) {
       this.streaming = false;
@@ -606,6 +673,11 @@ class ElectronCaptureSession implements CaptureSession {
     }
     const window = this.window;
     if (window && !window.isDestroyed()) {
+      try {
+        window.hide();
+      } catch {
+        // The window may already be gone; nothing to hide.
+      }
       this.gateway.removeSink(window.webContents.id);
       if (this.debuggerAttached) {
         try {
