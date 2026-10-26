@@ -142,6 +142,7 @@ class ElectronCaptureSession implements CaptureSession {
   private startMs = 0;
   private queue: FramePacket[] = [];
   private frameSink: ((frame: FramePacket) => void) | null = null;
+  private lastFrameMs = 0;
   private debuggerAttached = false;
   private crashed = false;
   private title = '';
@@ -404,13 +405,34 @@ class ElectronCaptureSession implements CaptureSession {
       // A dropped ack only costs one frame.
     });
     if (!this.streaming) return;
-    const packet: FramePacket = { t: Date.now(), base64: params.data };
+    const packet: FramePacket = { t: this.frameTimestamp(params), base64: params.data };
     if (!this.armed) {
       this.queue.push(packet);
       if (this.queue.length > MAX_QUEUED_FRAMES) this.queue.shift();
       return;
     }
     if (packet.t >= this.startMs) this.frameSink?.(packet);
+  }
+
+  /**
+   * Presentation instant of a captured frame.
+   *
+   * The screencast metadata carries Chromium's own capture time, which is what
+   * the animation timeline needs. Host arrival time is only a fallback: when
+   * the main process stalls it receives a burst of frames stamped with nearly
+   * the same instant, and the resampler would then repeat one frame through a
+   * fast transition while the frames after the stall arrive late. The metadata
+   * clock is accepted only when it is within five seconds of the host clock,
+   * and the sequence is kept monotonic.
+   */
+  private frameTimestamp(params: ScreencastFrameParams): number {
+    const received = Date.now();
+    const metadata = params.metadata?.timestamp;
+    const metadataMs = typeof metadata === 'number' && Number.isFinite(metadata) ? metadata * 1000 : null;
+    const usable = metadataMs !== null && Math.abs(metadataMs - received) < 5_000;
+    const t = Math.max(usable ? Math.round(metadataMs) : received, this.lastFrameMs);
+    this.lastFrameMs = t;
+    return t;
   }
 
   private arm(startMs: number): void {
@@ -514,6 +536,7 @@ class ElectronCaptureSession implements CaptureSession {
     this.frameSink = options.onFrame;
     this.queue = [];
     this.armed = false;
+    this.lastFrameMs = 0;
     this.streaming = true;
     try {
       await this.send('Page.startScreencast', {
