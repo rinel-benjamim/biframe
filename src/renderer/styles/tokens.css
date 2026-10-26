@@ -1,0 +1,112 @@
+/*
+ * Biframe tokens.
+ *
+ * One face from the product's world: a warm bone-tinted chrome frame holding a
+ * white sheet (furniture, ink, hairlines) with a single accent — the colour of a
+ * render in flight — reserved for progress, selection and the mark. The dark
+ * theme keeps the same structure and swaps the values.
+ *
+ * The full budget is written down so it stays: three surfaces, two inks, one
+ * accent, three status colours. Nothing else is allowed in.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* chrome (the L-frame: title bar + rail) */
+  --chrome: #f1f0ec;
+  --chrome-2: #e9e7e1;
+  --chrome-ink: #1b1b1f;
+  --chrome-muted: #6f6f77;
+
+  /* sheet (the working surface) */
+  --sheet: #ffffff;
+  --sheet-2: #faf9f7;
+  --sheet-3: #f3f2ee;
+
+  /* lines */
+  --line: #e7e5df;
+  --line-strong: #d9d6cd;
+
+  /* ink */
+  --ink: #17171a;
+  --ink-2: #4a4a52;
+  --muted: #5a5a62;
+  --faint: #676770;
+
+  /* accent: progress, selection, the mark. Nothing else. */
+  --accent: #5a52ff;
+  --accent-ink: #ffffff;
+  --accent-soft: #edecff;
+  --accent-line: #c9c6ff;
+
+  /* status */
+  --positive: #1c7a4c;
+  --warning: #a85c07;
+  --negative: #b3261e;
+  --positive-soft: #e8f5ee;
+  --warning-soft: #fdf2e3;
+  --negative-soft: #fdecea;
+
+  /* the single dark well: the video stage */
+  --stage: #0b0b0c;
+  --stage-line: #232326;
+  --stage-ink: #d9d9de;
+
+  /* geometry */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --rail: 224px;
+  --bar: 40px;
+  --gutter: 24px;
+
+  /* motion: feedback only, never entrance */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --fast: 120ms;
+  --medium: 200ms;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --chrome: #141417;
+  --chrome-2: #1b1b1f;
+  --chrome-ink: #ececee;
+  --chrome-muted: #9a9aa4;
+
+  --sheet: #1b1b1f;
+  --sheet-2: #202025;
+  --sheet-3: #24242a;
+
+  --line: #2b2b31;
+  --line-strong: #3a3a42;
+
+  --ink: #ececee;
+  --ink-2: #c7c7cd;
+  --muted: #a4a4ae;
+  --faint: #8a8a94;
+
+  --accent: #7b75ff;
+  --accent-ink: #101013;
+  --accent-soft: #23224a;
+  --accent-line: #3b3a76;
+
+  --positive: #58c08b;
+  --warning: #e0a45c;
+  --negative: #ef8c85;
+  --positive-soft: #17321f;
+  --warning-soft: #33260f;
+  --negative-soft: #3a1a17;
+
+  --stage: #08080a;
+  --stage-line: #26262b;
+  --stage-ink: #c9c9d1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --medium: 0ms;
+  }
+}
