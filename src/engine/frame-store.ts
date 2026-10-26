@@ -18,6 +18,14 @@ export class FrameStore {
   readonly rawDir: string;
   readonly cfrDir: string;
   private captured: CapturedFrame[] = [];
+  /**
+   * File numbers are reserved synchronously, before the write is awaited.
+   * Two frames can arrive while the first write is still in flight; taking the
+   * number from `captured.length` after the await would give them the same
+   * path, silently overwriting one frame and leaving two identical records —
+   * exactly the kind of stuttery export this class must never produce.
+   */
+  private nextIndex = 1;
   private extension: 'jpg' | 'png' = 'jpg';
 
   constructor(root: string) {
@@ -30,6 +38,8 @@ export class FrameStore {
     await fsp.rm(this.root, { recursive: true, force: true });
     await fsp.mkdir(this.rawDir, { recursive: true });
     await fsp.mkdir(this.cfrDir, { recursive: true });
+    this.captured = [];
+    this.nextIndex = 1;
   }
 
   setExtension(extension: 'jpg' | 'png'): void {
@@ -44,13 +54,18 @@ export class FrameStore {
     return this.captured.length;
   }
 
-  /** Persists one captured frame and records its timestamp. Called per frame. */
+  /**
+   * Persists one captured frame and records its timestamp. The record is
+   * appended in arrival order before the disk write starts, so concurrent
+   * writes can finish out of order without reordering the timeline.
+   */
   async writeFrame(data: Buffer, timestamp: number): Promise<CapturedFrame> {
-    const index = this.captured.length + 1;
+    const index = this.nextIndex;
+    this.nextIndex += 1;
     const file = path.join(this.rawDir, `frame-${String(index).padStart(6, '0')}.${this.extension}`);
-    await fsp.writeFile(file, data);
     const frame: CapturedFrame = { t: timestamp, file };
     this.captured.push(frame);
+    await fsp.writeFile(file, data);
     return frame;
   }
 
