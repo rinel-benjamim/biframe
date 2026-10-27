@@ -8,7 +8,8 @@ This document covers setup, the rules that are not negotiable, and what a change
 
 - Biframe 0.1 targets **Windows 10/11 x64** for packaging. The source is platform-neutral, but macOS and Linux builds are not verified.
 - The interface is in **Portuguese (pt-PT)**. Code, comments, commit messages, documentation and identifiers are in **English**.
-- There is no hosted release process yet. Do not claim a feature is shipped, signed or available for download unless it is.
+- Releases are published on the [GitHub Releases page](https://github.com/rinel-benjamim/biframe/releases). Do not claim a feature is shipped, signed or available for download unless it is.
+- By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Security reports do not belong in a public issue. See [SECURITY.md](SECURITY.md).
 
 ## Setup

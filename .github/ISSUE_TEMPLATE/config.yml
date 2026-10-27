@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/rinel-benjamim/biframe/security/advisories/new
+    about: Please do not open a public issue for a security problem. Report it privately instead.
+  - name: Questions and discussion
+    url: https://github.com/rinel-benjamim/biframe/discussions
+    about: Ask about usage or development without filing an issue.

@@ -8,6 +8,10 @@ Biframe turns an animated HTML page into a validated H.264 MP4. It opens the pag
 
 > Biframe 0.1 is a focused Windows desktop application. The interface is in Portuguese; the engine, the protocol and these documents are in English.
 
+## Download
+
+Installers are published on the [Releases page](https://github.com/rinel-benjamim/biframe/releases). The Windows installer is unsigned, so SmartScreen may warn on first run — choose **Mais informações → Executar assim mesmo**. Building from source is described below and in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Why it exists
 
 Handing a client a video of an HTML animation usually means recording the screen, cropping it, discovering the timing is wrong and doing it again. Biframe makes the page itself the source of truth: it renders at **1280×720**, **1920×1080**, vertical or square, captures every compositor frame it can, resamples to a constant frame rate and refuses to call the result finished until `ffprobe` confirms the file.
@@ -158,7 +162,7 @@ npm run test:e2e           # real Electron app through Playwright
 
 The end-to-end project builds the application once unless `BIFRAME_SKIP_E2E_BUILD=1` is set. Tests write only under `.test-out/`. A short summary of what each layer proves is in [docs/testing.md](docs/testing.md).
 
-The acceptance case used during development is a five-scene, 36.5-second 1280×720 page. The final verified run exported 1,095 frames, H.264 High, `yuv420p`, 1,786,764 bytes, with nine of nine validation checks passing; frames from all five scenes were visually inspected and the original HTML kept the same size and SHA-256. The bundled `resources/example/exemplo-biframe.html` is a smaller offline example that ships with the app.
+The acceptance case used during development is a five-scene, 36.5-second 1280×720 page. The final verified run, at 60 fps, exported 2,190 frames, H.264 High, `yuv420p`, 2,291,976 bytes (SHA-256 `9501D66C8477E8C525D39339B503E800288F3A5E6F79C0596793DDB53853F80B`), with nine of nine validation checks passing and no `CAPTURE_RATE_LOW`; frames from all five scenes were visually inspected and the original HTML kept the same size and SHA-256. The bundled `resources/example/exemplo-biframe.html` is a smaller offline example that ships with the app.
 
 ## Project layout
 
@@ -206,6 +210,7 @@ Custom dimensions must be even and between 64 and 3840 pixels. Durations must be
 ## Contributing, security, licence
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — setup, architectural rules, test expectations.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards and how to report conduct problems.
 - [SECURITY.md](SECURITY.md) — supported versions and private reporting.
 - [docs/security.md](docs/security.md) — threat model, controls and residual risks.
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — bundled FFmpeg/FFprobe and other dependencies.

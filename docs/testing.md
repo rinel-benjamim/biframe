@@ -126,7 +126,7 @@ The development acceptance case is the five-scene, 36.5-second 1280×720 `Brisa 
 
 ## What is not tested
 
-- No CI workflow is committed. The suites are run locally; a Windows CI job would be a welcome contribution.
+- CI runs typecheck, lint, unit, UI and integration suites on every push and pull request (`.github/workflows/ci.yml`, Windows runner). The end-to-end suite and the packaged smoke test still run locally only.
 - No coverage percentage or coverage threshold is enforced.
 - The NSIS installer, macOS packages, Linux AppImage, code signing and automatic updates are not tested.
 - No test drives a physical display capture, an actual GPU failure, a system sleep/resume or a full disk.
