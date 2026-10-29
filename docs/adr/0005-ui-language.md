@@ -37,6 +37,7 @@ The hard part is not the interface copy. Sentences are produced deep inside the 
 - `ERROR_DEFINITIONS` is derived from the catalog via the default translator and keeps only the `recoverable` flag; the interface re-renders any `SerializedError` through `localizedErrorTitle`/`localizedErrorMessage` keyed by `error.code`, so even an error raised deep inside the engine reaches the user in their current language.
 - `formatSeconds`, `formatNumber`, `formatDateTime` and `formatRelative` take the language as their last, optional parameter (default Portuguese), switching both the `Intl` locale and the wording.
 - Presets expose `localizedAspectRatios`, `localizedResolutionPresets` and `localizedQualityPresets(language)`; the base arrays keep default-language labels for logs and tests.
+- The document root follows the interface: `store.tsx` sets `document.documentElement.lang` from `localeFor(language)` and `document.title` from the project name or the translated tagline, so screen readers and the window title speak the active language.
 
 ## Consequences
 
@@ -59,3 +60,4 @@ Costs:
 - `tests/unit/format.test.ts` covers the English decimal separator and relative-time wording.
 - `tests/unit/archive-guard.test.ts` asserts the stable reason codes and `archiveReasonMessage` in both languages.
 - The UI switch is covered in `tests/ui/components.test.tsx` (language change re-renders the interface in English).
+- `tests/e2e/app.test.ts` switches the real application to English, checks `document.documentElement.lang`, reloads to prove the choice persisted and switches back to Portuguese.

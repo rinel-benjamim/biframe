@@ -240,6 +240,7 @@ describe('Biframe desktop application', () => {
 
     // Portuguese is the shipped default.
     expect(await page.getByRole('button', { name: 'Português', exact: true }).getAttribute('aria-pressed')).toBe('true');
+    expect(await page.evaluate('document.documentElement.lang')).toBe('pt-PT');
 
     await page.getByRole('button', { name: 'English', exact: true }).click();
     await page.getByRole('navigation', { name: 'Main navigation' }).waitFor({ state: 'visible', timeout: 15_000 });
@@ -247,15 +248,21 @@ describe('Biframe desktop application', () => {
     expect(await page.getByRole('button', { name: 'English', exact: true }).getAttribute('aria-pressed')).toBe('true');
     await captureDesktop('05-settings-english.png');
 
+    // The document language follows the interface language, so screen readers
+    // pronounce the new copy correctly.
+    expect(await page.evaluate('document.documentElement.lang')).toBe('en-US');
+
     // The choice is a setting: a fresh window load boots in English.
     await page.reload();
     await page.locator('.app').waitFor({ state: 'visible', timeout: 60_000 });
     await page.getByRole('navigation', { name: 'Main navigation' }).waitFor({ state: 'visible', timeout: 30_000 });
+    expect(await page.evaluate('document.documentElement.lang')).toBe('en-US');
 
     // Leave the profile in the default language for the next run.
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Settings' }).click();
     await page.getByRole('button', { name: 'Português', exact: true }).click();
     await page.getByRole('navigation', { name: 'Navegação principal' }).waitFor({ state: 'visible', timeout: 15_000 });
     expect(await page.locator('#language-label').textContent()).toBe('Idioma');
+    expect(await page.evaluate('document.documentElement.lang')).toBe('pt-PT');
   });
 });

@@ -11,7 +11,7 @@ import {
 import type { BootstrapPayload } from '@shared/channels';
 import { isErrorCode } from '@shared/errors';
 import { formatBytes, formatNumber, sanitizeFileName, ensureExtension } from '@shared/format';
-import { createTranslator, DEFAULT_LANGUAGE, type Language, type Translator } from '@shared/i18n';
+import { createTranslator, DEFAULT_LANGUAGE, localeFor, type Language, type Translator } from '@shared/i18n';
 import { defaultRenderSettings } from '@shared/presets';
 import type {
   AppSettings,
@@ -376,6 +376,12 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
     const scope = state.project?.name ?? t('ui.app.tagline');
     document.title = `Biframe — ${scope}`;
   }, [state.project?.name, t]);
+
+  // Screen readers pick their pronunciation from the document language; it must
+  // track the interface language, not the build-time default.
+  useEffect(() => {
+    document.documentElement.lang = localeFor(language);
+  }, [language]);
 
   const actions = useMemo<AppActions>(() => {
     const runImport = async (
