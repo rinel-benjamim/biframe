@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { BiframeError } from '@shared/errors';
+import { createTranslator, type Language, type Translator } from '@shared/i18n';
 import type { Diagnostic, ProjectInfo } from '@shared/types';
-import { classifyArchiveEntries, normalizeArchivePath, pickHtmlEntry, resolveWithinRoot } from '../../engine/project/archive-guard';
+import { archiveReasonMessage, classifyArchiveEntries, normalizeArchivePath, pickHtmlEntry, resolveWithinRoot } from '../../engine/project/archive-guard';
 import { startProjectServer, type ProjectServer } from '../../engine/project/server';
 import { DiagnosticCollector, type DiagnosticInput } from '../../engine/diagnostics';
 import type { AppPaths } from '../paths';
@@ -29,6 +30,8 @@ export interface ProjectImportOptions {
 export interface ProjectServiceOptions {
   paths: AppPaths;
   logger: Logger;
+  /** Language of every diagnostic and message this service produces. */
+  getLanguage: () => Language;
   limits: () => { maxProjectBytes: number; maxZipEntries: number };
   onProjectChanged?: (project: ProjectInfo | null) => void;
 }
@@ -46,6 +49,11 @@ export class ProjectService {
     this.paths = options.paths;
     this.logger = options.logger.child('project');
     this.options = options;
+  }
+
+  /** Copy is produced per import, so a language change applies to new projects. */
+  private t(): Translator {
+    return createTranslator(this.options.getLanguage());
   }
 
   current(): ProjectInfo | null {
@@ -151,6 +159,7 @@ export class ProjectService {
         maxTotalBytes: limits.maxProjectBytes,
         maxFileBytes: 64 * 1024 * 1024,
       },
+      t: this.t(),
     });
     const collector = new DiagnosticCollector(60);
     collector.addAll(toDiagnostics(result.diagnostics));
@@ -203,28 +212,32 @@ export class ProjectService {
       maxEntryBytes: limits.maxProjectBytes,
     });
 
-    const unsafe = plan.rejected.filter((entry) => entry.reason === 'caminho inválido' || entry.reason === 'link simbólico');
+    const unsafe = plan.rejected.filter((entry) => entry.reason === 'invalid-path' || entry.reason === 'symlink');
     if (unsafe.length > 0 && plan.accepted.length === 0) {
       throw new BiframeError('ARCHIVE_UNSAFE_ENTRY', {
         detail: unsafe.slice(0, 5).map((entry) => `${entry.path}: ${entry.reason}`).join('; '),
       });
     }
 
+    const t = this.t();
     const collector = new DiagnosticCollector(80);
     for (const rejected of plan.rejected.slice(0, 12)) {
       collector.add({
         code: 'ZIP_ENTRY_SKIPPED',
-        severity: rejected.reason === 'link simbólico' || rejected.reason === 'caminho inválido' ? 'warning' : 'info',
-        message: 'Uma entrada do arquivo foi ignorada',
-        detail: `${rejected.path} — ${rejected.reason}`,
+        severity: rejected.reason === 'symlink' || rejected.reason === 'invalid-path' ? 'warning' : 'info',
+        message: t('diag.entrySkipped'),
+        detail: `${rejected.path} — ${archiveReasonMessage(rejected.reason, t)}`,
       });
     }
     if (plan.truncated) {
       collector.add({
         code: 'ZIP_ENTRY_SKIPPED',
         severity: 'warning',
-        message: 'O arquivo excedeu os limites e parte do conteúdo foi ignorada',
-        detail: `Máximo de ${limits.maxZipEntries} entradas e ${limits.maxProjectBytes} bytes.`,
+        message: t('diag.archiveTruncated'),
+        detail: t('diag.archiveTruncatedDetail', {
+          maxEntries: limits.maxZipEntries,
+          maxBytes: limits.maxProjectBytes,
+        }),
       });
     }
 
@@ -251,8 +264,8 @@ export class ProjectService {
         collector.add({
           code: 'ZIP_ENTRY_SKIPPED',
           severity: 'warning',
-          message: 'Uma entrada do arquivo foi ignorada',
-          detail: `${accepted.path} — o caminho resolvido sairia da pasta do projeto`,
+          message: t('diag.entrySkipped'),
+          detail: t('diag.entryEscapedDetail', { path: accepted.path }),
         });
         continue;
       }
@@ -275,7 +288,7 @@ export class ProjectService {
       collector.add({
         code: 'REMOTE_RESOURCES',
         severity: 'info',
-        message: 'O projeto usa recursos externos',
+        message: t('diag.remoteResources'),
         detail: [...remoteHosts].slice(0, 8).join(', '),
       });
     }

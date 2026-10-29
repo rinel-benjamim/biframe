@@ -6,7 +6,7 @@ Biframe turns an animated HTML page into a validated H.264 MP4. It opens the pag
 
 ![Biframe studio with a live preview of the bundled example](docs/assets/studio.png)
 
-> Biframe 0.1 is a focused Windows desktop application. The interface is in Portuguese; the engine, the protocol and these documents are in English.
+> Biframe 0.1 is a focused Windows desktop application. The interface defaults to Portuguese (pt-PT) and can be switched to English in Definições → Idioma; the engine, the protocol and these documents are in English.
 
 ## Download
 
@@ -32,7 +32,7 @@ Handing a client a video of an HTML animation usually means recording the screen
 | Output | MP4, H.264 High profile, `yuv420p`, `+faststart`, AAC-free |
 | Quality | CRF 26 / 21 / 17 with matching x264 presets |
 | Review | Live preview at export geometry, diagnostics, real progress, cancel, overwrite confirmation, history, filmstrip from the encoded file |
-| Interface | Portuguese (pt-PT), light and dark themes, keyboard shortcuts |
+| Interface | Portuguese (pt-PT) default, English selectable in Definições, light and dark themes, keyboard shortcuts |
 
 ## What it is not (yet)
 
@@ -172,7 +172,7 @@ src/
   main/          Electron composition root: windows, IPC, services, protocols, security policy
   preload/       the only bridge exposed to the interface
   renderer/      React 19 interface, styles and screens
-  shared/        neutral types, schemas, errors, presets, formatting
+  shared/        neutral types, schemas, errors, presets, formatting, i18n catalogs
 tests/
   unit/          pure functions and stores
   integration/   real binaries, fake capture host, HTTP server, project import

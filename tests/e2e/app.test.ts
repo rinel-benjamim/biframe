@@ -98,12 +98,15 @@ beforeAll(async () => {
       BIFRAME_DISABLE_DEVTOOLS: '1',
     },
   });
-  page = await app.firstWindow();
+  // The first launch after a build can be slow: Windows Defender scans the
+  // freshly written bundles before Electron is allowed to paint. 90 s is a
+  // cold-start budget, not a performance expectation.
+  page = await app.firstWindow({ timeout: 90_000 });
   page.on('console', (message) => consoleLines.push(`[${message.type()}] ${message.text()}`));
   page.on('pageerror', (error) => consoleLines.push(`[pageerror] ${error.message}`));
   await page.locator('.app').waitFor({ state: 'visible', timeout: 60_000 });
   exampleHash = sha256(await fsp.readFile(exampleSource));
-}, 120_000);
+}, 180_000);
 
 afterAll(async () => {
   await app?.close().catch(() => undefined);
@@ -227,5 +230,32 @@ describe('Biframe desktop application', () => {
     // The imported example was copied, never modified in place.
     expect(sha256(await fsp.readFile(exampleSource))).toBe(exampleHash);
     await captureDesktop('04-after-cancel.png');
+  });
+
+  it('switches the interface language, persists it and switches back', async () => {
+    const rail = page.getByRole('navigation', { name: 'Navegação principal' });
+    await rail.getByRole('button', { name: 'Definições' }).click();
+    await page.locator('#language-label').waitFor({ state: 'visible' });
+    expect(await page.locator('#language-label').textContent()).toBe('Idioma');
+
+    // Portuguese is the shipped default.
+    expect(await page.getByRole('button', { name: 'Português', exact: true }).getAttribute('aria-pressed')).toBe('true');
+
+    await page.getByRole('button', { name: 'English', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Main navigation' }).waitFor({ state: 'visible', timeout: 15_000 });
+    expect(await page.locator('#language-label').textContent()).toBe('Language');
+    expect(await page.getByRole('button', { name: 'English', exact: true }).getAttribute('aria-pressed')).toBe('true');
+    await captureDesktop('05-settings-english.png');
+
+    // The choice is a setting: a fresh window load boots in English.
+    await page.reload();
+    await page.locator('.app').waitFor({ state: 'visible', timeout: 60_000 });
+    await page.getByRole('navigation', { name: 'Main navigation' }).waitFor({ state: 'visible', timeout: 30_000 });
+
+    // Leave the profile in the default language for the next run.
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'Português', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Navegação principal' }).waitFor({ state: 'visible', timeout: 15_000 });
+    expect(await page.locator('#language-label').textContent()).toBe('Idioma');
   });
 });

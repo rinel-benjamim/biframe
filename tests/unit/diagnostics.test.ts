@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { defaultTranslator } from '@shared/i18n';
 import {
   DiagnosticCollector,
   consoleDiagnosticInput,
@@ -82,38 +83,39 @@ describe('console diagnostics', () => {
   });
 
   it('creates an error diagnostic with source and line', () => {
-    const input = consoleDiagnosticInput(3, 'Uncaught TypeError', 'https://example.com/app.js', 17);
+    const input = consoleDiagnosticInput(defaultTranslator, 3, 'Uncaught TypeError', 'https://example.com/app.js', 17);
     expect(input).toMatchObject({ code: 'CONSOLE_ERROR', severity: 'error' });
     expect(input?.detail).toContain('Uncaught TypeError');
     expect(input?.detail).toContain('app.js:17');
   });
 
   it('ignores Electron security warnings injected in development', () => {
-    expect(consoleDiagnosticInput(2, 'Electron Security Warning (Insecure Content-Security-Policy)')).toBeNull();
+    expect(consoleDiagnosticInput(defaultTranslator, 2, 'Electron Security Warning (Insecure Content-Security-Policy)')).toBeNull();
   });
 });
 
 describe('resource failures', () => {
   it('classifies fonts and images', () => {
     expect(
-      resourceFailureInput({ url: 'https://x.test/font.woff2', error: 'net::ERR_FAILED', resourceType: 'Font' }),
+      resourceFailureInput(defaultTranslator, { url: 'https://x.test/font.woff2', error: 'net::ERR_FAILED', resourceType: 'Font' }),
     ).toMatchObject({ code: 'FONT_FALLBACK', severity: 'warning' });
     expect(
-      resourceFailureInput({ url: 'https://x.test/picture.png', error: 'net::ERR_FAILED', resourceType: 'Image' }),
+      resourceFailureInput(defaultTranslator, { url: 'https://x.test/picture.png', error: 'net::ERR_FAILED', resourceType: 'Image' }),
     ).toMatchObject({ code: 'MISSING_RESOURCE', severity: 'warning' });
     expect(
-      resourceFailureInput({ url: 'https://x.test/data.json', error: 'net::ERR_FAILED' }),
+      resourceFailureInput(defaultTranslator, { url: 'https://x.test/data.json', error: 'net::ERR_FAILED' }),
     ).toMatchObject({ code: 'MISSING_RESOURCE' });
   });
 });
 
 describe('page inspection', () => {
   it('produces no diagnostics for a clean page', () => {
-    expect(inspectionDiagnostics(emptyInspection({ fontsStatus: 'loaded', readyState: 'complete' }))).toEqual([]);
+    expect(inspectionDiagnostics(defaultTranslator, emptyInspection({ fontsStatus: 'loaded', readyState: 'complete' }))).toEqual([]);
   });
 
   it('reports broken images, fonts, remote resources and script errors', () => {
     const diagnostics = inspectionDiagnostics(
+      defaultTranslator,
       emptyInspection({
         brokenImages: [{ src: 'https://x.test/a.png', alt: 'gráfico' }],
         fontsStatus: 'loading',
@@ -134,6 +136,7 @@ describe('page inspection', () => {
 
   it('reports protocol declarations and media elements', () => {
     const diagnostics = inspectionDiagnostics(
+      defaultTranslator,
       emptyInspection({
         fontsStatus: 'loaded',
         protocolPresent: true,
@@ -151,7 +154,7 @@ describe('page inspection', () => {
 
 describe('still frame diagnostics', () => {
   it('warns about visually uniform samples', () => {
-    const diagnostics = stillFramesInput({
+    const diagnostics = stillFramesInput(defaultTranslator, {
       blank: true,
       staticFrames: true,
       samples: [{ mean: 0, stdDev: 0 }],
@@ -161,7 +164,7 @@ describe('still frame diagnostics', () => {
   });
 
   it('warns about identical samples that are not blank', () => {
-    const diagnostics = stillFramesInput({
+    const diagnostics = stillFramesInput(defaultTranslator, {
       blank: false,
       staticFrames: true,
       samples: [{ mean: 120, stdDev: 40 }],
@@ -172,7 +175,7 @@ describe('still frame diagnostics', () => {
 
   it('stays quiet for varied samples', () => {
     expect(
-      stillFramesInput({ blank: false, staticFrames: false, samples: [{ mean: 120, stdDev: 40 }] }),
+      stillFramesInput(defaultTranslator, { blank: false, staticFrames: false, samples: [{ mean: 120, stdDev: 40 }] }),
     ).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { BiframeError, serializeError } from '@shared/errors';
+import { createTranslator, type Translator } from '@shared/i18n';
 import { IPC, type ApiResult, type BootstrapPayload, type PreviewStateEvent, type ProjectImportResult, type RenderCompletedEvent, type RenderProgressEvent } from '@shared/channels';
 import { validateRenderSettings } from '@shared/settings';
 import type { AppSettings, EffectiveTheme, EngineStatus, PreviewBounds, RenderJob, SerializedError } from '@shared/types';
@@ -65,6 +66,9 @@ export function registerIpc(context: IpcContext): void {
     if (window.isDestroyed()) return;
     window.webContents.send(channel, payload);
   };
+
+  /** Copy is built per request, so a language change applies immediately. */
+  const t = (): Translator => createTranslator(settings.get().language);
 
   preview.onChange((state) => {
     const event: PreviewStateEvent = { state, diagnostics: state.diagnostics };
@@ -136,13 +140,13 @@ export function registerIpc(context: IpcContext): void {
       effectiveTheme: resolveEffectiveTheme(appSettings.theme),
       paths: { logs: paths.logsDir, temp: paths.tempRoot, userData: paths.userData },
       keyboardShortcuts: [
-        { id: 'import-html', keys: 'Ctrl+O', description: 'Importar um ficheiro HTML' },
-        { id: 'import-zip', keys: 'Ctrl+Shift+O', description: 'Importar um projeto ZIP' },
-        { id: 'export', keys: 'Ctrl+E', description: 'Exportar o vídeo' },
-        { id: 'studio', keys: 'Ctrl+1', description: 'Abrir o estúdio' },
-        { id: 'history', keys: 'Ctrl+2', description: 'Abrir o histórico' },
-        { id: 'settings', keys: 'Ctrl+3', description: 'Abrir as definições' },
-        { id: 'reload-preview', keys: 'Ctrl+R', description: 'Recarregar a pré-visualização' },
+        { id: 'import-html', keys: 'Ctrl+O', description: t()('shortcut.importHtml') },
+        { id: 'import-zip', keys: 'Ctrl+Shift+O', description: t()('shortcut.importZip') },
+        { id: 'export', keys: 'Ctrl+E', description: t()('shortcut.export') },
+        { id: 'studio', keys: 'Ctrl+1', description: t()('shortcut.studio') },
+        { id: 'history', keys: 'Ctrl+2', description: t()('shortcut.history') },
+        { id: 'settings', keys: 'Ctrl+3', description: t()('shortcut.settings') },
+        { id: 'reload-preview', keys: 'Ctrl+R', description: t()('shortcut.reloadPreview') },
       ],
     };
     return ok(bootstrap);
@@ -201,11 +205,11 @@ export function registerIpc(context: IpcContext): void {
 
   handleResult(IPC.project.pickHtml, async (): Promise<ApiResult<ProjectImportResult>> => {
     const picked = await dialog.showOpenDialog(window, {
-      title: 'Importar ficheiro HTML',
+      title: t()('dialog.importHtml'),
       properties: ['openFile'],
       filters: [
-        { name: 'Páginas HTML', extensions: ['html', 'htm', 'xhtml'] },
-        { name: 'Todos os ficheiros', extensions: ['*'] },
+        { name: t()('dialog.filter.htmlPages'), extensions: ['html', 'htm', 'xhtml'] },
+        { name: t()('dialog.filter.allFiles'), extensions: ['*'] },
       ],
     });
     if (picked.canceled || picked.filePaths.length === 0) return ok<ProjectImportResult>({ project: null, canceled: true });
@@ -214,11 +218,11 @@ export function registerIpc(context: IpcContext): void {
 
   handleResult(IPC.project.pickZip, async (): Promise<ApiResult<ProjectImportResult>> => {
     const picked = await dialog.showOpenDialog(window, {
-      title: 'Importar projeto ZIP',
+      title: t()('dialog.importZip'),
       properties: ['openFile'],
       filters: [
-        { name: 'Projetos ZIP', extensions: ['zip'] },
-        { name: 'Todos os ficheiros', extensions: ['*'] },
+        { name: t()('dialog.filter.zipProjects'), extensions: ['zip'] },
+        { name: t()('dialog.filter.allFiles'), extensions: ['*'] },
       ],
     });
     if (picked.canceled || picked.filePaths.length === 0) return ok<ProjectImportResult>({ project: null, canceled: true });
@@ -243,7 +247,7 @@ export function registerIpc(context: IpcContext): void {
 
   handleResult(IPC.project.pickOutputDir, async (): Promise<ApiResult<string | null>> => {
     const picked = await dialog.showOpenDialog(window, {
-      title: 'Escolher pasta de destino',
+      title: t()('dialog.outputDir'),
       properties: ['openDirectory', 'createDirectory'],
       defaultPath: settings.get().defaultOutputDir || undefined,
     });

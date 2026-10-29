@@ -125,9 +125,10 @@ describe('render settings validation', () => {
 });
 
 describe('app settings merge', () => {
-  it('defaults to the light theme and safe limits', () => {
+  it('defaults to the light theme, Portuguese and safe limits', () => {
     const settings = defaultAppSettings('C:\\output');
     expect(settings.theme).toBe('light');
+    expect(settings.language).toBe('pt');
     expect(settings.allowRemoteResources).toBe(false);
     expect(settings.keepTempFiles).toBe(false);
     expect(settings.limits.maxConcurrentJobs).toBe(1);
@@ -137,6 +138,7 @@ describe('app settings merge', () => {
     const settings = mergeAppSettings(
       {
         theme: 'dark',
+        language: 'en',
         allowRemoteResources: false,
         keepTempFiles: true,
         limits: { maxZipEntries: 42 },
@@ -144,6 +146,7 @@ describe('app settings merge', () => {
       'C:\\fallback',
     );
     expect(settings.theme).toBe('dark');
+    expect(settings.language).toBe('en');
     expect(settings.allowRemoteResources).toBe(false);
     expect(settings.keepTempFiles).toBe(true);
     expect(settings.limits.maxZipEntries).toBe(42);
@@ -155,6 +158,7 @@ describe('app settings merge', () => {
     const settings = mergeAppSettings(
       {
         theme: 'neon',
+        language: 'de',
         defaultOutputDir: 7,
         allowRemoteResources: 'yes',
         limits: { maxZipEntries: 0, pageLoadTimeoutMs: 1 },
@@ -162,6 +166,7 @@ describe('app settings merge', () => {
       'C:\\fallback',
     );
     expect(settings.theme).toBe('light');
+    expect(settings.language).toBe('pt');
     expect(settings.defaultOutputDir).toBe('C:\\fallback');
     expect(settings.allowRemoteResources).toBe(false);
     expect(settings.limits.maxZipEntries).toBe(defaultAppSettings('x').limits.maxZipEntries);

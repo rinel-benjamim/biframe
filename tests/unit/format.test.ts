@@ -3,6 +3,7 @@ import {
   ensureExtension,
   formatBytes,
   formatClock,
+  formatDateTime,
   formatFps,
   formatMilliseconds,
   formatNumber,
@@ -75,6 +76,29 @@ describe('formatRelative', () => {
     expect(formatRelative(now - 3 * 3_600_000, now)).toBe('há 3 h');
     expect(formatRelative(now - 24 * 3_600_000, now)).toBe('ontem');
     expect(formatRelative(now - 5 * 24 * 3_600_000, now)).toBe('há 5 dias');
+  });
+});
+
+describe('English language', () => {
+  const now = 1_700_000_000_000;
+
+  it('uses English decimal separators in durations and numbers', () => {
+    expect(formatSeconds(36.5, 'en')).toBe('36.5 s');
+    expect(formatSeconds(75, 'en')).toBe('1 min 15 s');
+    expect(formatNumber(1234.5, 1, 'en')).toBe('1,234.5');
+  });
+
+  it('describes recent moments in English', () => {
+    expect(formatRelative(now - 10_000, now, 'en')).toBe('just now');
+    expect(formatRelative(now - 5 * 60_000, now, 'en')).toBe('5 min ago');
+    expect(formatRelative(now - 3 * 3_600_000, now, 'en')).toBe('3 h ago');
+    expect(formatRelative(now - 24 * 3_600_000, now, 'en')).toBe('yesterday');
+    expect(formatRelative(now - 5 * 24 * 3_600_000, now, 'en')).toBe('5 days ago');
+  });
+
+  it('formats dates with the English locale', () => {
+    const rendered = formatDateTime(Date.UTC(2026, 0, 2, 3, 4), 'en');
+    expect(rendered).toContain('2026');
   });
 });
 

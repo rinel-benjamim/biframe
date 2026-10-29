@@ -1,3 +1,4 @@
+import type { Translator } from '@shared/i18n';
 import type { Diagnostic, DiagnosticCode, DiagnosticSeverity } from '@shared/types';
 
 /**
@@ -98,7 +99,13 @@ export function consoleLevelToSeverity(level: string | number): DiagnosticSeveri
   return null;
 }
 
-export function consoleDiagnosticInput(level: string | number, message: string, source?: string, line?: number): DiagnosticInput | null {
+export function consoleDiagnosticInput(
+  t: Translator,
+  level: string | number,
+  message: string,
+  source?: string,
+  line?: number,
+): DiagnosticInput | null {
   // Electron injects its own security advice into development consoles. It is
   // not the page speaking, it appears on every project, and the production
   // build does not show it; keeping it would make the panel cry wolf.
@@ -109,7 +116,7 @@ export function consoleDiagnosticInput(level: string | number, message: string, 
   return {
     code: severity === 'error' ? 'CONSOLE_ERROR' : 'PAGE_WARNING',
     severity,
-    message: severity === 'error' ? 'Mensagem de erro da consola' : 'Aviso da consola da página',
+    message: severity === 'error' ? t('diag.consoleError') : t('diag.consoleWarning'),
     detail: location ? `${message} (${location})` : message,
   };
 }
@@ -121,17 +128,13 @@ export interface ResourceFailure {
   resourceType?: string;
 }
 
-export function resourceFailureInput(failure: ResourceFailure): DiagnosticInput {
+export function resourceFailureInput(t: Translator, failure: ResourceFailure): DiagnosticInput {
   const isFont = /\.(woff2?|ttf|otf|eot)(\?|$)/i.test(failure.url) || failure.resourceType === 'Font';
   const isImage = failure.resourceType === 'Image' || /\.(png|jpe?g|gif|webp|avif|svg)(\?|$)/i.test(failure.url);
   return {
     code: isFont ? 'FONT_FALLBACK' : isImage ? 'MISSING_RESOURCE' : 'MISSING_RESOURCE',
     severity: 'warning',
-    message: isFont
-      ? 'Uma fonte externa não carregou; o texto pode aparecer com uma fonte alternativa'
-      : isImage
-        ? 'Uma imagem não carregou'
-        : 'Um recurso da página não carregou',
+    message: isFont ? t('diag.fontFallback') : isImage ? t('diag.imageMissing') : t('diag.resourceMissing'),
     detail: `${failure.error}${failure.resourceType ? ` (${failure.resourceType})` : ''}`,
     url: failure.url,
   };
@@ -184,14 +187,14 @@ export function emptyInspection(overrides: Partial<PageInspection> = {}): PageIn
   };
 }
 
-export function inspectionDiagnostics(inspection: PageInspection): DiagnosticInput[] {
+export function inspectionDiagnostics(t: Translator, inspection: PageInspection): DiagnosticInput[] {
   const diagnostics: DiagnosticInput[] = [];
   if (inspection.brokenImages.length > 0) {
     for (const image of inspection.brokenImages.slice(0, 12)) {
       diagnostics.push({
         code: 'MISSING_RESOURCE',
         severity: 'warning',
-        message: 'Uma imagem não carregou',
+        message: t('diag.imageMissing'),
         detail: image.alt ? `alt="${image.alt}"` : undefined,
         url: image.src,
       });
@@ -201,7 +204,7 @@ export function inspectionDiagnostics(inspection: PageInspection): DiagnosticInp
     diagnostics.push({
       code: 'FONT_FALLBACK',
       severity: 'warning',
-      message: 'As fontes da página podem não estar totalmente carregadas',
+      message: t('diag.fontsNotLoaded'),
       detail: `document.fonts.status = ${inspection.fontsStatus}`,
     });
   }
@@ -209,7 +212,7 @@ export function inspectionDiagnostics(inspection: PageInspection): DiagnosticInp
     diagnostics.push({
       code: 'REMOTE_RESOURCES',
       severity: 'info',
-      message: 'O projeto usa recursos externos',
+      message: t('diag.remoteResources'),
       detail: inspection.remoteHosts.slice(0, 8).join(', '),
     });
   }
@@ -217,15 +220,15 @@ export function inspectionDiagnostics(inspection: PageInspection): DiagnosticInp
     diagnostics.push({
       code: 'SCRIPT_ERROR',
       severity: 'warning',
-      message: 'A página lançou erros de JavaScript',
-      detail: `${inspection.scriptErrorCount} erro(s) capturados durante o carregamento`,
+      message: t('diag.scriptErrors'),
+      detail: t('diag.scriptErrorsDetail', { count: inspection.scriptErrorCount }),
     });
   }
   if (inspection.protocolPresent && inspection.protocolDurationSeconds !== null) {
     diagnostics.push({
       code: 'PAGE_WARNING',
       severity: 'info',
-      message: 'A página declara a duração através do protocolo Biframe',
+      message: t('diag.protocolDuration'),
       detail: `${inspection.protocolDurationSeconds} s`,
     });
   }
@@ -233,36 +236,47 @@ export function inspectionDiagnostics(inspection: PageInspection): DiagnosticInp
     diagnostics.push({
       code: 'AUDIO_UNSUPPORTED',
       severity: 'info',
-      message: 'O projeto contém elementos de vídeo ou áudio',
-      detail: `${inspection.mediaElementCount} elemento(s), ${inspection.playingMediaCount} em reprodução — o áudio não é incluído no vídeo exportado`,
+      message: t('diag.mediaElements'),
+      detail: t('diag.mediaElementsDetail', {
+        elements: inspection.mediaElementCount,
+        playing: inspection.playingMediaCount,
+      }),
     });
   }
   if (inspection.captureStartSeconds !== null || inspection.captureEndSeconds !== null) {
     diagnostics.push({
       code: 'PAGE_WARNING',
       severity: 'info',
-      message: 'A página declara uma janela de captura (protocolo Biframe)',
-      detail: `início ${inspection.captureStartSeconds ?? 0} s, fim ${inspection.captureEndSeconds ?? '—'} s — a janela é registada mas não recortada nesta versão`,
+      message: t('diag.captureWindow'),
+      detail: t('diag.captureWindowDetail', {
+        start: inspection.captureStartSeconds ?? 0,
+        end: inspection.captureEndSeconds ?? '—',
+      }),
     });
   }
   return diagnostics;
 }
 
-export function stillFramesInput(analysis: { blank: boolean; staticFrames: boolean; samples: { mean: number; stdDev: number }[] }): DiagnosticInput[] {
+export function stillFramesInput(
+  t: Translator,
+  analysis: { blank: boolean; staticFrames: boolean; samples: { mean: number; stdDev: number }[] },
+): DiagnosticInput[] {
   const diagnostics: DiagnosticInput[] = [];
   if (analysis.blank) {
     diagnostics.push({
       code: 'BLANK_FRAMES',
       severity: 'warning',
-      message: 'Os frames analisados são visualmente uniformes',
-      detail: `média ${analysis.samples.map((sample) => sample.mean).join(', ')} — verifique se a página tem conteúdo visível`,
+      message: t('diag.blankFrames'),
+      detail: t('diag.blankFramesDetail', {
+        means: analysis.samples.map((sample) => sample.mean).join(', '),
+      }),
     });
   } else if (analysis.staticFrames) {
     diagnostics.push({
       code: 'STATIC_FRAMES',
       severity: 'warning',
-      message: 'Os frames analisados são idênticos entre si',
-      detail: 'a animação pode não estar a correr; confirme que o projeto arranca sozinho',
+      message: t('diag.staticFrames'),
+      detail: t('diag.staticFramesDetail'),
     });
   }
   return diagnostics;

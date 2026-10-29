@@ -214,6 +214,7 @@ function render(
       entryUrl: ENTRY_URL,
       settings: settingsFor(options.settings),
       limits,
+      language: 'pt',
       tempRoot,
       posterRoot,
       allowRemote: options.allowRemote ?? false,

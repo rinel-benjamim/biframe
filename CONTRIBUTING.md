@@ -7,7 +7,7 @@ This document covers setup, the rules that are not negotiable, and what a change
 ## Before you start
 
 - Biframe 0.1 targets **Windows 10/11 x64** for packaging. The source is platform-neutral, but macOS and Linux builds are not verified.
-- The interface is in **Portuguese (pt-PT)**. Code, comments, commit messages, documentation and identifiers are in **English**.
+- The interface defaults to **Portuguese (pt-PT)** and can be switched to English in Definições → Idioma. Every user-facing string in the engine, the main process and the interface lives in the shared catalog in `src/shared/i18n/`; code, comments, commit messages, documentation and identifiers are in **English**.
 - Releases are published on the [GitHub Releases page](https://github.com/rinel-benjamim/biframe/releases). Do not claim a feature is shipped, signed or available for download unless it is.
 - By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Security reports do not belong in a public issue. See [SECURITY.md](SECURITY.md).
@@ -108,7 +108,7 @@ The suites are described in [docs/testing.md](docs/testing.md).
 - Use `import type` for type-only imports.
 - Prefer small pure functions in `engine/` and thin orchestration in services.
 - Comments explain **why** a non-obvious decision exists, not what the next line does.
-- Errors use `BiframeError` with a stable code from `src/shared/errors.ts`. Add human-readable Portuguese copy in the renderer labels, not in the engine.
+- Errors use `BiframeError` with a stable code from `src/shared/errors.ts`. Add the human-readable title and message to both catalogs in `src/shared/i18n/` (`pt.ts` and `en.ts`); never inline copy in the engine or the interface.
 - Logs are structured and scoped. Never log file contents, tokens or imported page data.
 - Use `path` APIs rather than string concatenation for filesystem paths.
 - Run `npm run lint` with zero warnings and `npm run typecheck` before opening a change.
@@ -118,7 +118,7 @@ The suites are described in [docs/testing.md](docs/testing.md).
 - The visual direction is documented in the code comments and README: a tinted chrome frame around an inset white sheet, IBM Plex Sans/Mono, one accent, a real filmstrip. Do not turn screens into generic card grids.
 - Use the tokens in `src/renderer/styles/tokens.css`; do not hard-code palette values in components.
 - Check both light and dark themes, keyboard focus, `prefers-reduced-motion`, empty states, errors, long file names and 1060×700 windows.
-- The interface language is Portuguese. Error messages must say what happened and what the user can do next.
+- The interface defaults to Portuguese and can be switched to English in Settings. Both languages come from the shared catalog, so new copy must be added to `pt.ts` and `en.ts` (the build fails if a translation is missing). Error messages must say what happened and what the user can do next.
 - Buttons must have a real action. A disabled or loading control must reflect actual state.
 - Never hide a destructive action behind a silent overwrite. Replacement requires explicit confirmation.
 - New screens or components need at least a smoke check in the E2E or UI suite if they affect an export path.

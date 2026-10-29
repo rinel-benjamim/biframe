@@ -7,6 +7,7 @@ import {
 } from '@engine/encoding/args';
 import { parseFps, parseFfprobeDocument, validateOutput, analyseGreyFrame, analyseSamples } from '@engine/encoding/probe';
 import { parseProgressLine, parseTimestamp } from '@engine/encoding/progress';
+import { defaultTranslator } from '@shared/i18n';
 import type { RenderSettings, VideoMetadata } from '@shared/types';
 
 const settings: RenderSettings = {
@@ -202,6 +203,7 @@ describe('ffprobe parsing', () => {
 
 describe('output validation', () => {
   const base = {
+    t: defaultTranslator,
     metadata,
     formatName: 'mov,mp4,m4a,3gp,3g2,mj2',
     audioStreams: 0,

@@ -1,5 +1,6 @@
 import { WebContentsView, type BrowserWindow } from 'electron';
 import { serializeError } from '@shared/errors';
+import { createTranslator, type Language, type Translator } from '@shared/i18n';
 import type { PreviewBounds, PreviewState } from '@shared/types';
 import { DiagnosticCollector, consoleDiagnosticInput } from '../../engine/diagnostics';
 import { classifyNavigation } from '../../engine/network/policy';
@@ -21,6 +22,7 @@ export class PreviewService {
   private readonly collector = new DiagnosticCollector(200);
   private readonly gateway: ContentGateway;
   private readonly logger: Logger;
+  private readonly getLanguage: () => Language;
   private view: WebContentsView | null = null;
   private window: BrowserWindow | null = null;
   private listeners = new Set<(state: PreviewState) => void>();
@@ -35,9 +37,15 @@ export class PreviewService {
     error: null,
   };
 
-  constructor(options: { gateway: ContentGateway; logger: Logger }) {
+  constructor(options: { gateway: ContentGateway; logger: Logger; getLanguage: () => Language }) {
     this.gateway = options.gateway;
     this.logger = options.logger.child('preview');
+    this.getLanguage = options.getLanguage;
+  }
+
+  /** Copy is produced on demand, so a language change applies to new diagnostics. */
+  private t(): Translator {
+    return createTranslator(this.getLanguage());
   }
 
   attach(window: BrowserWindow): void {
@@ -105,19 +113,19 @@ export class PreviewService {
       const first = args[0];
       if (first && typeof first === 'object' && 'message' in (first as Record<string, unknown>)) {
         const details = first as { level?: string | number; message?: string; lineNumber?: number; sourceId?: string };
-        const input = consoleDiagnosticInput(details.level ?? 1, details.message ?? '', details.sourceId, details.lineNumber);
+        const input = consoleDiagnosticInput(this.t(), details.level ?? 1, details.message ?? '', details.sourceId, details.lineNumber);
         if (input && this.collector.add(input)) this.emit();
         return;
       }
       const [, level, message, line, sourceId] = args as [unknown, string | number, string, number, string];
-      const input = consoleDiagnosticInput(level ?? 1, message ?? '', sourceId, line);
+      const input = consoleDiagnosticInput(this.t(), level ?? 1, message ?? '', sourceId, line);
       if (input && this.collector.add(input)) this.emit();
     });
     contents.on('render-process-gone', (_event, details) => {
       this.collector.add({
         code: 'RENDER_PROCESS_GONE',
         severity: 'error',
-        message: 'A pré-visualização terminou inesperadamente',
+        message: this.t()('preview.processGone'),
         detail: `${details.reason} (exitCode ${details.exitCode})`,
       });
       this.emit();
@@ -129,8 +137,8 @@ export class PreviewService {
         this.collector.add({
           code: 'NAVIGATION_BLOCKED',
           severity: 'warning',
-          message: 'A pré-visualização tentou navegar para fora do projeto',
-          detail: 'A navegação foi bloqueada por segurança.',
+          message: this.t()('preview.navigationBlocked'),
+          detail: this.t()('preview.navigationBlockedDetail'),
           url: url.slice(0, 300),
         });
         this.emit();
@@ -140,7 +148,7 @@ export class PreviewService {
       this.collector.add({
         code: 'WINDOW_OPEN_BLOCKED',
         severity: 'info',
-        message: 'A página tentou abrir uma nova janela',
+        message: this.t()('diag.windowOpen'),
         url: url.slice(0, 300),
       });
       this.emit();

@@ -65,7 +65,7 @@ async function bootstrap(): Promise<void> {
   const history = new HistoryStore(paths.historyFile, log);
   await history.load();
 
-  const contentGateway = new ContentGateway('content', log);
+  const contentGateway = new ContentGateway('content', log, () => settings.get().language);
   gateway = contentGateway;
 
   let cachedEngine: EngineStatus | null = null;
@@ -86,11 +86,13 @@ async function bootstrap(): Promise<void> {
       projectOrigin: projectService?.serverOrigin ?? '',
       allowRemote: settings.get().allowRemoteResources,
     }),
+    getLanguage: () => settings.get().language,
   });
 
   const projects = new ProjectService({
     paths,
     logger: log,
+    getLanguage: () => settings.get().language,
     limits: () => settings.get().limits,
     onProjectChanged: (project) => {
       contentGateway.setPolicy({
@@ -102,7 +104,11 @@ async function bootstrap(): Promise<void> {
   });
   projectService = projects;
 
-  const preview = new PreviewService({ gateway: contentGateway, logger: log });
+  const preview = new PreviewService({
+    gateway: contentGateway,
+    logger: log,
+    getLanguage: () => settings.get().language,
+  });
   previewService = preview;
 
   const render = new RenderService({

@@ -11,7 +11,7 @@ import type { PreviewBounds, RenderJob } from '@shared/types';
 import { formatMilliseconds, formatNumber, formatSeconds, pluralize } from '@shared/format';
 import { DEFAULT_FPS } from '@shared/presets';
 import { getBridge } from '../lib/api';
-import { useAppActions, useAppState } from '../lib/store';
+import { localizedErrorMessage, useAppActions, useAppState, useLanguage, useT } from '../lib/store';
 import { Spinner } from './ui';
 
 /**
@@ -28,6 +28,8 @@ import { Spinner } from './ui';
 export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): ReactNode {
   const { project, preview, draft, settings } = useAppState();
   const { reloadPreview, cancelRender, setPreviewVisible } = useAppActions();
+  const t = useT();
+  const language = useLanguage();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [fullyVisible, setFullyVisible] = useState(true);
   const [cancelling, setCancelling] = useState(false);
@@ -151,7 +153,7 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
                 <div className="stage__progress-meta">
                   <span className="tnum">
                     {activeJob.progress.frames
-                      ? `${formatNumber(activeJob.progress.frames.captured)} / ${formatNumber(activeJob.progress.frames.target)} frames`
+                      ? `${formatNumber(activeJob.progress.frames.captured, 0, language)} / ${formatNumber(activeJob.progress.frames.target, 0, language)} frames`
                       : formatMilliseconds(activeJob.progress.elapsedMs)}
                   </span>
                   <span aria-hidden="true">·</span>
@@ -166,30 +168,30 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
                     }}
                     disabled={cancelling}
                   >
-                    {cancelling ? 'A cancelar…' : 'Cancelar'}
+                    {cancelling ? t('ui.action.cancelling') : t('ui.action.cancel')}
                   </button>
                 </div>
               </div>
             ) : preview.error ? (
               <div className="stage__message">
                 <AlertTriangle size={20} aria-hidden="true" />
-                <strong>A pré-visualização não carregou</strong>
-                <p>{preview.error.message}</p>
+                <strong>{t('ui.stage.previewFailed')}</strong>
+                <p>{localizedErrorMessage(preview.error, t)}</p>
                 <button type="button" className="btn btn--quiet" onClick={() => void reloadPreview()}>
                   <RotateCw size={14} aria-hidden="true" />
-                  Tentar novamente
+                  {t('ui.action.retry')}
                 </button>
               </div>
             ) : preview.loading || !previewReady ? (
               <div className="stage__message">
                 <Spinner size={18} />
-                <strong>A carregar a página</strong>
-                <p>O Chromium está a preparar o projeto no enquadramento de exportação.</p>
+                <strong>{t('ui.stage.loading')}</strong>
+                <p>{t('ui.stage.loadingDetail')}</p>
               </div>
             ) : !fullyVisible ? (
               <div className="stage__message">
-                <strong>Pré-visualização suspensa</strong>
-                <p>O palco está fora de vista. Volte a ele para retomar a pré-visualização ao vivo.</p>
+                <strong>{t('ui.stage.suspended')}</strong>
+                <p>{t('ui.stage.suspendedDetail')}</p>
               </div>
             ) : null}
           </div>
@@ -199,7 +201,13 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
       <div className="stage__bar">
         <span className="stage__live" data-live={showLive}>
           <span className="stage__live-dot" aria-hidden="true" />
-          {rendering ? 'A renderizar' : showLive ? 'Ao vivo' : previewReady ? 'Em espera' : 'A carregar'}
+          {rendering
+            ? t('ui.stage.state.rendering')
+            : showLive
+              ? t('ui.stage.state.live')
+              : previewReady
+                ? t('ui.stage.state.waiting')
+                : t('ui.stage.state.loading')}
         </span>
         <span className="stage__bar-sep" aria-hidden="true">
           ·
@@ -217,8 +225,8 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
         <span className="tnum">
           {draft
             ? draft.duration.mode === 'manual'
-              ? formatSeconds(draft.duration.seconds)
-              : `até ${formatSeconds(draft.duration.maxSeconds)}`
+              ? formatSeconds(draft.duration.seconds, language)
+              : t('ui.duration.upToValue', { time: formatSeconds(draft.duration.maxSeconds, language) })
             : '—'}
         </span>
         {settings?.allowRemoteResources === false ? (
@@ -226,13 +234,16 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
             <span className="stage__bar-sep" aria-hidden="true">
               ·
             </span>
-            <span className="chip">Rede externa desligada</span>
+            <span className="chip">{t('ui.stage.remoteOff')}</span>
           </>
         ) : null}
         <span className="spacer" />
-        <span className="stage__source mono" title={project ? `${project.htmlFileCount + project.assetCount} ficheiros` : undefined}>
+        <span
+          className="stage__source mono"
+          title={project ? t('ui.files.titleMany', { count: project.htmlFileCount + project.assetCount }) : undefined}
+        >
           {project
-            ? `${formatNumber(project.htmlFileCount + project.assetCount)} ${pluralize(project.htmlFileCount + project.assetCount, 'ficheiro', 'ficheiros')}`
+            ? `${formatNumber(project.htmlFileCount + project.assetCount, 0, language)} ${pluralize(project.htmlFileCount + project.assetCount, t('ui.files.one'), t('ui.files.many'))}`
             : null}
         </span>
         <button
@@ -240,10 +251,10 @@ export function PreviewStage({ activeJob }: { activeJob: RenderJob | null }): Re
           className="btn btn--quiet"
           onClick={() => void reloadPreview()}
           disabled={rendering || !previewReady}
-          title="Recarregar a pré-visualização (Ctrl+R)"
+          title={t('ui.stage.reloadTitle')}
         >
           <RotateCw size={14} aria-hidden="true" />
-          Recarregar
+          {t('ui.action.reload')}
         </button>
       </div>
     </div>

@@ -10,6 +10,7 @@ import type {
 } from '@shared/types';
 import { BiframeError, toBiframeError } from '@shared/errors';
 import { ensureExtension, formatClock, sanitizeFileName } from '@shared/format';
+import { createTranslator, type Language, type Translator } from '@shared/i18n';
 import { estimateOutputBytes, qualityPreset } from '@shared/presets';
 import type { DiagnosticInput } from '../diagnostics';
 import { DiagnosticCollector, inspectionDiagnostics, stillFramesInput } from '../diagnostics';
@@ -27,6 +28,8 @@ export interface RenderPipelineInput {
   entryUrl: string;
   settings: RenderSettings;
   limits: ResourceLimits;
+  /** Language of every sentence this pipeline emits (progress, diagnostics, checks). */
+  language: Language;
   /** Root for temporary frame directories (one subdirectory per job). */
   tempRoot: string;
   /** Root for the poster stills kept after the render (result view). */
@@ -86,6 +89,7 @@ export async function runRenderPipeline(
   environment: RenderPipelineEnvironment,
 ): Promise<RenderResult> {
   const startedAt = Date.now();
+  const t: Translator = createTranslator(input.language);
   const collector = new DiagnosticCollector();
   const extraDiagnostics: DiagnosticInput[] = [];
   const outputPath = resolveOutputPath(input.settings);
@@ -118,7 +122,7 @@ export async function runRenderPipeline(
   };
 
   try {
-    emit('preparing', 'A preparar o motor de renderização', 0);
+    emit('preparing', t('progress.preparing'), 0);
     [ffmpeg, ffprobe] = await Promise.all([resolveFfmpeg(), resolveFfprobe()]);
     environment.log?.('media binaries resolved', { ffmpeg: ffmpeg.version, ffprobe: ffprobe.version, source: ffmpeg.source });
 
@@ -149,7 +153,7 @@ export async function runRenderPipeline(
     await frameStore.init();
     frameStore.setExtension('jpg');
 
-    emit('launching', 'A abrir o Chromium controlado', 2);
+    emit('launching', t('progress.openingChromium'), 2);
     session = await environment.host.createSession({
       width: input.settings.width,
       height: input.settings.height,
@@ -159,23 +163,23 @@ export async function runRenderPipeline(
     });
     if (environment.token.cancelled) throw new BiframeError('RENDER_CANCELLED');
 
-    emit('loading', 'A carregar o projeto', 4);
+    emit('loading', t('progress.loadingProject'), 4);
     const loadOutcome = await session.load(input.entryUrl, { timeoutMs: input.limits.pageLoadTimeoutMs });
     if (!loadOutcome.ok) {
       throw new BiframeError('PAGE_LOAD_FAILED', { detail: loadOutcome.errorDetail });
     }
     const inspection = await session.inspect();
-    for (const diagnostic of inspectionDiagnostics(inspection)) collector.add(diagnostic);
+    for (const diagnostic of inspectionDiagnostics(t, inspection)) collector.add(diagnostic);
     if (inspection.protocolDurationSeconds !== null) {
       extraDiagnostics.push({
         code: 'PAGE_WARNING',
         severity: 'info',
-        message: 'Duração declarada pela página através do protocolo Biframe',
+        message: t('diag.protocolDurationDeclared'),
         detail: `${inspection.protocolDurationSeconds} s`,
       });
     }
 
-    emit('capturing', 'A preparar a animação', 6);
+    emit('capturing', t('progress.preparingAnimation'), 6);
     let writeError: unknown = null;
     const pendingWrites: Promise<void>[] = [];
     const frameTimes: number[] = [];
@@ -206,7 +210,7 @@ export async function runRenderPipeline(
     if (input.settings.duration.mode === 'auto' && mark.protocol.durationSeconds !== null) {
       effectiveDuration = Math.min(mark.protocol.durationSeconds, input.limits.maxDurationSeconds);
     } else if (input.settings.duration.mode === 'auto') {
-      emit('capturing', 'À espera que a página sinalize o fim da animação', null);
+      emit('capturing', t('progress.waitingForSignal'), null);
       const completion = await session.waitForCompletion(input.limits.maxDurationSeconds * 1000, environment.token);
       if (completion === 'cancelled') throw new BiframeError('RENDER_CANCELLED');
       if (completion === 'timeout') {
@@ -233,7 +237,10 @@ export async function runRenderPipeline(
           const ratio = Math.min(1, Math.max(0, elapsed / totalMs));
           emit(
             'capturing',
-            `A capturar ${formatClock(Math.max(0, elapsed / 1000))} de ${formatClock(effectiveDuration)}`,
+            t('progress.capturing', {
+              elapsed: formatClock(Math.max(0, elapsed / 1000)),
+              total: formatClock(effectiveDuration),
+            }),
             6 + ratio * 72,
             { captured: frameTimes.length, target: targetFrames },
           );
@@ -252,7 +259,7 @@ export async function runRenderPipeline(
       throw new BiframeError('NO_FRAMES_CAPTURED', { detail: 'the page produced no compositor frames during capture' });
     }
 
-    emit('resampling', 'A construir a sequência de frames', 80, {
+    emit('resampling', t('progress.resampling'), 80, {
       captured: sourceFrames.length,
       target: frameCountFor(input.settings.fps, effectiveDuration * 1000),
     });
@@ -267,8 +274,11 @@ export async function runRenderPipeline(
       extraDiagnostics.push({
         code: 'CAPTURE_RATE_LOW',
         severity: 'warning',
-        message: 'A captura ficou abaixo do FPS pedido',
-        detail: `captura ≈ ${plan.stats.captureFps} fps para saída a ${input.settings.fps} fps; alguns frames foram repetidos`,
+        message: t('diag.captureRateLow'),
+        detail: t('diag.captureRateLowDetail', {
+          captureFps: plan.stats.captureFps,
+          fps: input.settings.fps,
+        }),
       });
     }
     const materialized = await frameStore.materialize(plan);
@@ -278,7 +288,7 @@ export async function runRenderPipeline(
       });
     }
 
-    emit('encoding', 'A codificar H.264', 82, {
+    emit('encoding', t('progress.encoding'), 82, {
       captured: materialized.count,
       target: materialized.count,
     });
@@ -303,10 +313,12 @@ export async function runRenderPipeline(
           if (now - lastEncodeEmit < ENCODE_PROGRESS_INTERVAL_MS && update.frame < materialized.count) return;
           lastEncodeEmit = now;
           const ratio = Math.min(1, update.frame / materialized.count);
-          emit('encoding', `A codificar ${update.frame} de ${materialized.count} frames`, 82 + ratio * 13, {
-            captured: update.frame,
-            target: materialized.count,
-          });
+          emit(
+            'encoding',
+            t('progress.encodingFrames', { frame: update.frame, total: materialized.count }),
+            82 + ratio * 13,
+            { captured: update.frame, target: materialized.count },
+          );
         },
       },
     );
@@ -319,7 +331,7 @@ export async function runRenderPipeline(
     }
     createdOutput = true;
 
-    emit('validating', 'A validar o vídeo produzido', 96);
+    emit('validating', t('progress.validating'), 96);
     const probeRun = await captureBinary(ffprobe.path, buildProbeArgs({ inputPath: outputPath }));
     if (probeRun.code !== 0) {
       throw new BiframeError('OUTPUT_VALIDATION_FAILED', { detail: logTail(probeRun.stderr) });
@@ -332,6 +344,7 @@ export async function runRenderPipeline(
     }
     const size = (await fsp.stat(outputPath)).size;
     const validation: ValidationReport = validateOutput({
+      t,
       metadata: parsed.metadata,
       formatName: parsed.formatName,
       audioStreams: parsed.audioStreams,
@@ -358,7 +371,7 @@ export async function runRenderPipeline(
     }
     if (samples.length > 0) {
       const analysis = analyseSamples(samples);
-      for (const diagnostic of stillFramesInput(analysis)) extraDiagnostics.push(diagnostic);
+      for (const diagnostic of stillFramesInput(t, analysis)) extraDiagnostics.push(diagnostic);
     }
 
     const posterFrames = await extractPosters({
@@ -413,7 +426,7 @@ export async function runRenderPipeline(
       });
     }
 
-    emit('completed', 'Vídeo pronto', 100, {
+    emit('completed', t('progress.completed'), 100, {
       captured: materialized.count,
       target: materialized.count,
     });

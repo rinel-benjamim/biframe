@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_LANGUAGE, LANGUAGES } from './i18n';
 import { FPS_OPTIONS, MAX_DIMENSION, MAX_DURATION_SECONDS, MIN_DIMENSION, MIN_DURATION_SECONDS } from './presets';
 import type { AppSettings, RenderSettings, ResourceLimits } from './types';
 
@@ -16,7 +17,7 @@ const evenDimension = z
   .int()
   .min(MIN_DIMENSION)
   .max(MAX_DIMENSION)
-  .refine((value) => value % 2 === 0, { message: 'A dimensão tem de ser um número par.' });
+  .refine((value) => value % 2 === 0, { message: 'The dimension must be an even number.' });
 
 export const durationSettingSchema = z.discriminatedUnion('mode', [
   z.object({
@@ -34,12 +35,12 @@ export const renderSettingsSchema = z.object({
     .string()
     .min(1)
     .max(160)
-    .refine((value) => value.trim().length > 0, { message: 'O nome do ficheiro não pode estar vazio.' }),
+    .refine((value) => value.trim().length > 0, { message: 'The file name cannot be empty.' }),
   outputDir: z.string().min(1),
   width: evenDimension,
   height: evenDimension,
   fps: z.number().int().refine((value) => (FPS_OPTIONS as readonly number[]).includes(value), {
-    message: 'FPS não suportado.',
+    message: 'Unsupported frame rate.',
   }),
   duration: durationSettingSchema,
   quality: z.enum(['compact', 'balanced', 'high']),
@@ -59,6 +60,7 @@ export const resourceLimitsSchema = z.object({
 
 export const appSettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
+  language: z.enum(LANGUAGES),
   defaultOutputDir: z.string(),
   allowRemoteResources: z.boolean(),
   openResultAfterRender: z.boolean(),
@@ -69,6 +71,7 @@ export const appSettingsSchema = z.object({
 export function defaultAppSettings(defaultOutputDir: string): AppSettings {
   return {
     theme: 'light',
+    language: DEFAULT_LANGUAGE,
     defaultOutputDir,
     allowRemoteResources: false,
     openResultAfterRender: false,
@@ -109,6 +112,7 @@ export function mergeAppSettings(stored: unknown, defaultOutputDir: string): App
   const candidate = stored as Partial<AppSettings>;
   const merged: AppSettings = {
     theme: candidate.theme === 'light' || candidate.theme === 'dark' || candidate.theme === 'system' ? candidate.theme : defaults.theme,
+    language: candidate.language === 'pt' || candidate.language === 'en' ? candidate.language : defaults.language,
     defaultOutputDir: typeof candidate.defaultOutputDir === 'string' && candidate.defaultOutputDir ? candidate.defaultOutputDir : defaults.defaultOutputDir,
     allowRemoteResources: typeof candidate.allowRemoteResources === 'boolean' ? candidate.allowRemoteResources : defaults.allowRemoteResources,
     openResultAfterRender: typeof candidate.openResultAfterRender === 'boolean' ? candidate.openResultAfterRender : defaults.openResultAfterRender,

@@ -11,21 +11,29 @@ import {
   Play,
   X,
 } from 'lucide-react';
+import type { Translator } from '@shared/i18n';
 import { formatBytes, formatNumber, formatSeconds, sanitizeFileName, ensureExtension } from '@shared/format';
 import {
   FPS_OPTIONS,
-  QUALITY_PRESETS,
-  RESOLUTION_PRESETS,
   estimateOutputBytes,
   findResolutionPreset,
   isValidFrameSize,
+  localizedQualityPresets,
+  localizedResolutionPresets,
   MAX_DURATION_SECONDS,
   MAX_DIMENSION,
   MIN_DIMENSION,
   MIN_DURATION_SECONDS,
 } from '@shared/presets';
 import type { RenderSettings, SerializedError } from '@shared/types';
-import { useAppActions, useAppState } from '../lib/store';
+import {
+  localizedErrorMessage,
+  localizedErrorTitle,
+  useAppActions,
+  useAppState,
+  useLanguage,
+  useT,
+} from '../lib/store';
 import { Notice, ProgressBlock } from './ui';
 
 interface DraftIssues {
@@ -35,26 +43,28 @@ interface DraftIssues {
   duration?: string;
 }
 
-function validateDraft(draft: RenderSettings, maxDuration: number): DraftIssues {
+function validateDraft(draft: RenderSettings, maxDuration: number, t: Translator): DraftIssues {
   const issues: DraftIssues = {};
   if (draft.fileName.trim().length === 0) {
-    issues.fileName = 'Dê um nome ao ficheiro.';
+    issues.fileName = t('ui.export.issue.fileNameEmpty');
   } else if (draft.fileName.trim().length > 160) {
-    issues.fileName = 'O nome não pode exceder 160 caracteres.';
+    issues.fileName = t('ui.export.issue.fileNameLong');
   }
   if (draft.outputDir.trim().length === 0) {
-    issues.outputDir = 'Escolha a pasta onde o vídeo será guardado.';
+    issues.outputDir = t('ui.export.issue.outputDirEmpty');
   }
   if (!isValidFrameSize(draft.width, draft.height)) {
-    issues.size =
-      `Use dimensões pares entre ${MIN_DIMENSION} e ${MAX_DIMENSION} px. O H.264 4:2:0 exige largura e altura pares.`;
+    issues.size = t('ui.export.issue.frameSize', { min: MIN_DIMENSION, max: MAX_DIMENSION });
   }
   const seconds = draft.duration.mode === 'manual' ? draft.duration.seconds : draft.duration.maxSeconds;
   if (!Number.isFinite(seconds) || seconds < MIN_DURATION_SECONDS || seconds > Math.min(MAX_DURATION_SECONDS, maxDuration)) {
     issues.duration =
       draft.duration.mode === 'manual'
-        ? `A duração tem de estar entre ${MIN_DURATION_SECONDS} s e ${Math.min(MAX_DURATION_SECONDS, maxDuration)} s.`
-        : `O limite tem de estar entre 1 s e ${Math.min(MAX_DURATION_SECONDS, maxDuration)} s.`;
+        ? t('ui.export.issue.duration', {
+            min: MIN_DURATION_SECONDS,
+            max: Math.min(MAX_DURATION_SECONDS, maxDuration),
+          })
+        : t('ui.export.issue.durationAuto', { max: Math.min(MAX_DURATION_SECONDS, maxDuration) });
   }
   return issues;
 }
@@ -119,6 +129,8 @@ export function ExportPanel(): ReactNode {
     consumeExportRequest,
     notify,
   } = useAppActions();
+  const t = useT();
+  const language = useLanguage();
   const [conflict, setConflict] = useState<{ settings: RenderSettings; error: SerializedError } | null>(null);
   const [renderError, setRenderError] = useState<SerializedError | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -140,7 +152,7 @@ export function ExportPanel(): ReactNode {
   async function handleExport(overwrite: boolean, override?: RenderSettings): Promise<void> {
     if (!draft) return;
     if (running) {
-      notify({ kind: 'info', title: 'Já existe uma exportação em curso', message: 'Cancele-a antes de iniciar outra.' });
+      notify({ kind: 'info', title: t('ui.export.busy.title'), message: t('ui.export.busy.message') });
       return;
     }
     setConflict(null);
@@ -166,10 +178,12 @@ export function ExportPanel(): ReactNode {
   if (!draft || !settings) return null;
 
   const maxDuration = Math.min(MAX_DURATION_SECONDS, settings.limits.maxDurationSeconds);
-  const issues = validateDraft(draft, maxDuration);
+  const issues = validateDraft(draft, maxDuration, t);
   const valid = Object.keys(issues).length === 0;
   const preset = findResolutionPreset(draft.width, draft.height);
   const presetValue = preset?.id ?? 'custom';
+  const resolutionPresets = localizedResolutionPresets(language);
+  const qualityPresets = localizedQualityPresets(language);
   const seconds = draft.duration.mode === 'manual' ? draft.duration.seconds : draft.duration.maxSeconds;
   const frames = Math.round((Number.isFinite(seconds) ? seconds : 0) * draft.fps);
   const estimate = estimateOutputBytes(draft.width, draft.height, draft.fps, Math.max(0.1, seconds), draft.quality);
@@ -184,7 +198,7 @@ export function ExportPanel(): ReactNode {
   return (
     <section className="panel export" aria-labelledby="export-title">
       <div className="panel__head">
-        <h2 id="export-title">Exportar</h2>
+        <h2 id="export-title">{t('ui.export.title')}</h2>
         <span className="spacer" />
         <span className="chip mono">MP4 · H.264</span>
       </div>
@@ -208,8 +222,8 @@ export function ExportPanel(): ReactNode {
             notice={{
               id: 0,
               kind: 'warning',
-              title: 'O motor de vídeo não está pronto',
-              message: 'O FFmpeg ou o FFprobe não responderam. Verifique o estado em Definições.',
+              title: t('ui.export.engineNotReady.title'),
+              message: t('ui.export.engineNotReady.message'),
             }}
           />
         ) : null}
@@ -218,9 +232,9 @@ export function ExportPanel(): ReactNode {
           <div className="notice" data-kind="warn" role="alert">
             <AlertTriangle size={17} aria-hidden="true" className="notice__icon notice__icon--warning" />
             <div className="notice__body">
-              <div className="notice__title">Já existe um ficheiro com este nome</div>
+              <div className="notice__title">{t('ui.export.conflict.title')}</div>
               <div className="notice__message">
-                {conflict.settings.fileName} será substituído. Esta acção não pode ser desfeita.
+                {t('ui.export.conflict.message', { fileName: conflict.settings.fileName })}
               </div>
               <div className="notice__actions">
                 <button
@@ -228,10 +242,10 @@ export function ExportPanel(): ReactNode {
                   className="btn btn--primary"
                   onClick={() => void handleExport(true, conflict.settings)}
                 >
-                  Substituir ficheiro
+                  {t('ui.export.conflict.replace')}
                 </button>
                 <button type="button" className="btn btn--quiet" onClick={() => setConflict(null)}>
-                  Manter o nome
+                  {t('ui.export.conflict.keep')}
                 </button>
               </div>
             </div>
@@ -242,15 +256,15 @@ export function ExportPanel(): ReactNode {
           <div className="notice" data-kind="error" role="alert">
             <AlertTriangle size={17} aria-hidden="true" className="notice__icon notice__icon--error" />
             <div className="notice__body">
-              <div className="notice__title">{renderError.title}</div>
-              <div className="notice__message">{renderError.message}</div>
+              <div className="notice__title">{localizedErrorTitle(renderError, t)}</div>
+              <div className="notice__message">{localizedErrorMessage(renderError, t)}</div>
               {renderError.detail ? <div className="notice__detail">{renderError.detail}</div> : null}
             </div>
             <button
               type="button"
               className="btn btn--quiet btn--icon"
               onClick={() => setRenderError(null)}
-              aria-label="Fechar erro"
+              aria-label={t('ui.export.errorCloseAria')}
             >
               <X size={15} aria-hidden="true" />
             </button>
@@ -260,7 +274,7 @@ export function ExportPanel(): ReactNode {
         <fieldset className="form" disabled={running}>
           <div className="field">
             <label className="field__label" htmlFor="export-file-name">
-              Nome do ficheiro
+              {t('ui.export.fileName')}
             </label>
             <input
               id="export-file-name"
@@ -276,7 +290,7 @@ export function ExportPanel(): ReactNode {
 
           <div className="field">
             <label className="field__label" htmlFor="export-output-dir">
-              Pasta de destino
+              {t('ui.export.outputDir')}
             </label>
             <div className="field__row">
               <input
@@ -295,8 +309,8 @@ export function ExportPanel(): ReactNode {
                     if (picked) update({ outputDir: picked });
                   });
                 }}
-                title="Escolher pasta"
-                aria-label="Escolher pasta de destino"
+                title={t('ui.export.chooseFolder')}
+                aria-label={t('ui.export.chooseFolderAria')}
               >
                 <FolderOpen size={15} aria-hidden="true" />
               </button>
@@ -306,31 +320,31 @@ export function ExportPanel(): ReactNode {
 
           <div className="field">
             <label className="field__label" htmlFor="export-resolution">
-              Resolução
-              <span className="hint">a página é enquadrada e escalada</span>
+              {t('ui.export.resolution')}
+              <span className="hint">{t('ui.export.resolutionHint')}</span>
             </label>
             <select
               id="export-resolution"
               className="select"
               value={presetValue}
               onChange={(event) => {
-                const next = RESOLUTION_PRESETS.find((candidate) => candidate.id === event.currentTarget.value);
+                const next = resolutionPresets.find((candidate) => candidate.id === event.currentTarget.value);
                 if (next) update({ width: next.width, height: next.height });
               }}
             >
-              {RESOLUTION_PRESETS.map((candidate) => (
+              {resolutionPresets.map((candidate) => (
                 <option value={candidate.id} key={candidate.id}>
                   {candidate.label} · {candidate.width} × {candidate.height}
-                  {candidate.demanding ? ' — exigente' : ''}
+                  {candidate.demanding ? t('ui.export.demanding') : ''}
                 </option>
               ))}
-              <option value="custom">Personalizado…</option>
+              <option value="custom">{t('ui.export.custom')}</option>
             </select>
             {presetValue === 'custom' ? (
               <div className="grid-2 export__dimensions">
                 <div className="field">
                   <label className="field__label" htmlFor="export-width">
-                    Largura <span className="hint">px</span>
+                    {t('ui.export.width')} <span className="hint">px</span>
                   </label>
                   <NumberInput
                     id="export-width"
@@ -343,7 +357,7 @@ export function ExportPanel(): ReactNode {
                 </div>
                 <div className="field">
                   <label className="field__label" htmlFor="export-height">
-                    Altura <span className="hint">px</span>
+                    {t('ui.export.height')} <span className="hint">px</span>
                   </label>
                   <NumberInput
                     id="export-height"
@@ -358,7 +372,7 @@ export function ExportPanel(): ReactNode {
             ) : (
               <span className="field__note mono">
                 {draft.width} × {draft.height}
-                {preset?.demanding ? ' · 4K e 1440p exigem mais memória e tempo' : ''}
+                {preset?.demanding ? t('ui.export.demandingNote') : ''}
               </span>
             )}
             {issues.size ? <span className="field__error">{issues.size}</span> : null}
@@ -366,7 +380,7 @@ export function ExportPanel(): ReactNode {
 
           <div className="field">
             <label className="field__label" htmlFor="export-fps">
-              Movimento
+              {t('ui.export.fps')}
             </label>
             <select
               id="export-fps"
@@ -376,18 +390,16 @@ export function ExportPanel(): ReactNode {
             >
               {FPS_OPTIONS.map((fps) => (
                 <option value={fps} key={fps}>
-                  {fps} fps{fps === 60 ? ' — recomendado' : fps === 30 ? ' — compatibilidade' : ''}
+                  {fps} fps{fps === 60 ? t('ui.export.fpsRecommended') : fps === 30 ? t('ui.export.fpsCompatible') : ''}
                 </option>
               ))}
             </select>
-            <span className="field__note">
-              60 fps acompanha o ecrã e mantém as transições tão fluidas como no navegador.
-            </span>
+            <span className="field__note">{t('ui.export.fpsNote')}</span>
           </div>
 
           <div className="field">
             <span className="field__label" id="duration-label">
-              Duração
+              {t('ui.export.duration')}
             </span>
             <div className="segmented" role="group" aria-labelledby="duration-label">
               <button
@@ -395,14 +407,14 @@ export function ExportPanel(): ReactNode {
                 aria-pressed={draft.duration.mode === 'manual'}
                 onClick={() => update({ duration: { mode: 'manual', seconds: Math.min(10, maxDuration) } })}
               >
-                Manual
+                {t('ui.export.durationManual')}
               </button>
               <button
                 type="button"
                 aria-pressed={draft.duration.mode === 'auto'}
                 onClick={() => update({ duration: { mode: 'auto', maxSeconds: Math.min(60, maxDuration) } })}
               >
-                Automática
+                {t('ui.export.durationAuto')}
               </button>
             </div>
             {draft.duration.mode === 'manual' ? (
@@ -415,7 +427,7 @@ export function ExportPanel(): ReactNode {
                   step={0.5}
                   onChange={(value) => update({ duration: { mode: 'manual', seconds: value } })}
                 />
-                <span className="field__unit">segundos</span>
+                <span className="field__unit">{t('ui.export.seconds')}</span>
               </div>
             ) : (
               <div className="field__row">
@@ -427,21 +439,21 @@ export function ExportPanel(): ReactNode {
                   step={1}
                   onChange={(value) => update({ duration: { mode: 'auto', maxSeconds: value } })}
                 />
-                <span className="field__unit">segundos, no máximo</span>
+                <span className="field__unit">{t('ui.export.secondsMax')}</span>
               </div>
             )}
             <span className="field__note">
               {draft.duration.mode === 'manual'
-                ? 'A captura termina exactamente no instante indicado.'
-                : 'A página pode declarar window.biframe.duration ou emitir biframe:complete. Sem sinal, a captura pára no limite.'}
+                ? t('ui.export.durationManualNote')
+                : t('ui.export.durationAutoNote')}
             </span>
             {issues.duration ? <span className="field__error">{issues.duration}</span> : null}
           </div>
 
           <div className="field">
-            <span className="field__label">Qualidade</span>
+            <span className="field__label">{t('ui.export.quality')}</span>
             <div className="choice-list">
-              {QUALITY_PRESETS.map((quality) => (
+              {qualityPresets.map((quality) => (
                 <label className="choice" data-selected={draft.quality === quality.id} key={quality.id}>
                   <input
                     type="radio"
@@ -462,14 +474,14 @@ export function ExportPanel(): ReactNode {
 
         <div className="estimate" aria-live="polite">
           <span className="estimate__frames mono tnum">
-            {draft.duration.mode === 'auto' ? 'até ' : ''}
-            {formatNumber(frames)} frames
+            {draft.duration.mode === 'auto' ? `${t('ui.duration.upTo')} ` : ''}
+            {formatNumber(frames, 0, language)} frames
           </span>
           <span className="estimate__dot" aria-hidden="true">
             ·
           </span>
           <span className="tnum">≈ {formatBytes(estimate)}</span>
-          <span className="estimate__note">estimativa antes da codificação</span>
+          <span className="estimate__note">{t('ui.export.estimateNote')}</span>
         </div>
       </div>
 
@@ -485,7 +497,7 @@ export function ExportPanel(): ReactNode {
             disabled={cancelling}
           >
             <X size={15} aria-hidden="true" />
-            {cancelling ? 'A cancelar…' : 'Cancelar renderização'}
+            {cancelling ? t('ui.action.cancelling') : t('ui.export.cancelRender')}
           </button>
         ) : (
           <button
@@ -493,16 +505,18 @@ export function ExportPanel(): ReactNode {
             className="btn btn--primary btn--block btn--lg"
             onClick={() => void handleExport(false)}
             disabled={!valid || !engineReady}
-            title={!engineReady ? 'O motor de vídeo não está disponível' : 'Ctrl+E'}
+            title={!engineReady ? t('ui.export.engineUnavailableTitle') : 'Ctrl+E'}
           >
             <Play size={15} aria-hidden="true" />
-            Exportar vídeo
+            {t('ui.export.exportVideo')}
             <ArrowRight size={15} aria-hidden="true" />
           </button>
         )}
       </div>
       <div className="panel__foot-note">
-        {draft.duration.mode === 'manual' ? formatSeconds(draft.duration.seconds) : `até ${formatSeconds(draft.duration.maxSeconds)}`} ·{' '}
+        {draft.duration.mode === 'manual'
+          ? formatSeconds(draft.duration.seconds, language)
+          : t('ui.duration.upToValue', { time: formatSeconds(draft.duration.maxSeconds, language) })} ·{' '}
         {draft.fps} fps · H.264 / yuv420p · faststart
       </div>
     </section>

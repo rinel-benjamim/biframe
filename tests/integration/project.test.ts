@@ -8,6 +8,7 @@ import type { Logger } from '../../src/main/log';
 import { startProjectServer, type ProjectServer } from '@engine/project/server';
 import { collectSingleHtmlProject, remoteHostsFromText } from '../../src/main/services/html-assets';
 import { ProjectService } from '../../src/main/services/project-service';
+import { defaultTranslator } from '@shared/i18n';
 
 /**
  * Integration coverage for the project boundary: the loopback server that
@@ -262,6 +263,7 @@ describe('collectSingleHtmlProject', () => {
       htmlPath: path.join(htmlFixture, 'page.html'),
       destinationRoot: destination,
       limits: { maxFiles: 100, maxTotalBytes: 1024 * 1024, maxFileBytes: 64 * 1024 },
+      t: defaultTranslator,
     });
 
     expect(result.entryRelative).toBe('page.html');
@@ -301,6 +303,7 @@ describe('collectSingleHtmlProject', () => {
       htmlPath: path.join(htmlFixture, 'page.html'),
       destinationRoot: destination,
       limits: { maxFiles: 100, maxTotalBytes: 1024 * 1024, maxFileBytes: 10 },
+      t: defaultTranslator,
     });
 
     expect(result.copiedFiles).toBe(0);
@@ -326,6 +329,7 @@ describe('collectSingleHtmlProject', () => {
       htmlPath: path.join(fixture, 'page.html'),
       destinationRoot: destination,
       limits: { maxFiles: 100, maxTotalBytes: 1024 * 1024, maxFileBytes: 64 * 1024 },
+      t: defaultTranslator,
     });
 
     expect(result.copiedFiles).toBe(0);
@@ -352,6 +356,7 @@ describe('ProjectService', () => {
     const service = new ProjectService({
       paths: servicePaths(),
       logger: createLogger(),
+      getLanguage: () => 'pt',
       limits: () => ({ maxProjectBytes: 5 * 1024 * 1024, maxZipEntries: 200 }),
     });
 
@@ -384,6 +389,7 @@ describe('ProjectService', () => {
     const service = new ProjectService({
       paths: servicePaths(),
       logger: createLogger(),
+      getLanguage: () => 'pt',
       limits: () => ({ maxProjectBytes: 5 * 1024 * 1024, maxZipEntries: 200 }),
     });
 
@@ -407,6 +413,7 @@ describe('ProjectService', () => {
     const service = new ProjectService({
       paths: servicePaths(),
       logger: createLogger(),
+      getLanguage: () => 'pt',
       limits: () => ({ maxProjectBytes: 5 * 1024 * 1024, maxZipEntries: 200 }),
     });
     const textFile = path.join(root, 'notes.txt');

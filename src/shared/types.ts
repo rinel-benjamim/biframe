@@ -3,6 +3,7 @@
  * React interface. Nothing in this module may import Electron, React or Node
  * built-ins: it is the neutral contract between all three.
  */
+import type { Language } from './i18n';
 
 export type ProjectKind = 'html' | 'zip';
 
@@ -256,6 +257,8 @@ export type EffectiveTheme = 'light' | 'dark';
 
 export interface AppSettings {
   theme: 'system' | 'light' | 'dark';
+  /** Interface language. The engine and the main process read it per operation. */
+  language: Language;
   defaultOutputDir: string;
   allowRemoteResources: boolean;
   openResultAfterRender: boolean;

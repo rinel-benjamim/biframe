@@ -6,7 +6,14 @@ import {
 } from 'react';
 import { FileCode2, FileArchive, Upload } from 'lucide-react';
 import { getBridge } from './lib/api';
-import { AppProvider, useAppActions, useAppState } from './lib/store';
+import {
+  AppProvider,
+  localizedErrorTitle,
+  localizedErrorMessage,
+  useAppActions,
+  useAppState,
+  useT,
+} from './lib/store';
 import { Notice, Mark, Spinner } from './components/ui';
 import { Rail, Titlebar } from './components/shell';
 import { HistoryScreen } from './screens/history';
@@ -17,32 +24,34 @@ import { StudioScreen } from './screens/studio';
 const SUPPORTED_EXTENSIONS = /\.(html?|xhtml|zip)$/i;
 
 function Boot(): ReactNode {
+  const t = useT();
   return (
     <div className="boot" role="status" aria-live="polite">
       <div className="boot__mark">
         <Mark size={34} />
       </div>
-      <div className="boot__title">A preparar o estúdio</div>
+      <div className="boot__title">{t('ui.boot.title')}</div>
       <div className="boot__sub">
         <Spinner size={14} />
-        A verificar o Chromium, o FFmpeg e o espaço de trabalho.
+        {t('ui.boot.sub')}
       </div>
     </div>
   );
 }
 
 function Fatal({ error }: { error: NonNullable<ReturnType<typeof useAppState>['fatal']> }): ReactNode {
+  const t = useT();
   return (
     <div className="boot boot--fatal">
       <div className="boot__mark">
         <Mark size={34} />
       </div>
-      <div className="boot__title">{error.title}</div>
-      <div className="boot__sub">{error.message}</div>
+      <div className="boot__title">{localizedErrorTitle(error, t)}</div>
+      <div className="boot__sub">{localizedErrorMessage(error, t)}</div>
       {error.detail ? <pre className="boot__detail mono">{error.detail}</pre> : null}
       <div className="boot__actions">
         <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
-          Tentar novamente
+          {t('ui.action.retry')}
         </button>
       </div>
     </div>
@@ -52,6 +61,7 @@ function Fatal({ error }: { error: NonNullable<ReturnType<typeof useAppState>['f
 function AppFrame(): ReactNode {
   const state = useAppState();
   const actions = useAppActions();
+  const t = useT();
   const {
     view,
     notice,
@@ -108,16 +118,16 @@ function AppFrame(): ReactNode {
       if (!filePath) {
         actions.notify({
           kind: 'error',
-          title: 'Não foi possível ler o ficheiro',
-          message: 'Arraste o ficheiro a partir do Explorador do Windows.',
+          title: t('ui.drop.unreadable.title'),
+          message: t('ui.drop.unreadable.message'),
         });
         return;
       }
       if (!SUPPORTED_EXTENSIONS.test(filePath)) {
         actions.notify({
           kind: 'error',
-          title: 'Formato não suportado',
-          message: 'Escolha um ficheiro .html, .htm, .xhtml ou .zip.',
+          title: t('ui.drop.unsupported.title'),
+          message: t('ui.drop.unsupported.message'),
           detail: filePath,
         });
         return;
@@ -125,8 +135,8 @@ function AppFrame(): ReactNode {
       if (running) {
         actions.notify({
           kind: 'warning',
-          title: 'Uma renderização está em curso',
-          message: 'Espere que termine ou cancele antes de importar outro projeto.',
+          title: t('ui.notice.renderInRun.title'),
+          message: t('ui.notice.renderInRun.import.message'),
         });
         return;
       }
@@ -143,7 +153,7 @@ function AppFrame(): ReactNode {
       window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('drop', onDrop);
     };
-  }, [actions, running]);
+  }, [actions, running, t]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -155,8 +165,8 @@ function AppFrame(): ReactNode {
         if (running) {
           actions.notify({
             kind: 'warning',
-            title: 'Uma renderização está em curso',
-            message: 'Não é possível importar outro projeto enquanto o vídeo é exportado.',
+            title: t('ui.notice.renderInRun.title'),
+            message: t('ui.notice.renderInRun.keyboard.message'),
           });
           return;
         }
@@ -191,7 +201,7 @@ function AppFrame(): ReactNode {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [actions, project, running]);
+  }, [actions, project, running, t]);
 
   if (!bootstrapped) return <Boot />;
   if (fatal) return <Fatal error={fatal} />;
@@ -219,8 +229,8 @@ function AppFrame(): ReactNode {
         <div className="drop-overlay" aria-hidden="true">
           <div className="drop-overlay__card">
             <Upload size={24} aria-hidden="true" />
-            <strong>Largue para importar</strong>
-            <span>Uma página HTML ou um projeto ZIP</span>
+            <strong>{t('ui.drop.title')}</strong>
+            <span>{t('ui.drop.subtitle')}</span>
             <span className="drop-overlay__hint">
               <FileCode2 size={13} aria-hidden="true" /> .html
               <FileArchive size={13} aria-hidden="true" /> .zip
@@ -232,7 +242,7 @@ function AppFrame(): ReactNode {
       {importBusy ? (
         <div className="import-pill" role="status">
           <Spinner size={13} />
-          A importar o projeto…
+          {t('ui.import.busy')}
         </div>
       ) : null}
     </div>

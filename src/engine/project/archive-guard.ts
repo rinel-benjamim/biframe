@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { type MessageKey, type Translator } from '@shared/i18n';
 
 /**
  * Archive entry validation. Nothing is written to disk before an entry passes
@@ -23,9 +24,28 @@ export interface ArchiveLimits {
   maxEntryBytes: number;
 }
 
+/**
+ * Why an entry was rejected. The verdict carries a stable code, never a
+ * sentence: the code is what the importer compares, and the sentence is built
+ * in the interface language by `archiveReasonMessage`.
+ */
+export type ArchiveRejectionReason = 'invalid-path' | 'symlink' | 'entry-too-large' | 'total-limit';
+
 export type EntryVerdict =
   | { accept: true; path: string; sizeBytes: number; isDirectory: boolean }
-  | { accept: false; path: string; reason: string };
+  | { accept: false; path: string; reason: ArchiveRejectionReason };
+
+const REASON_KEYS: Record<ArchiveRejectionReason, MessageKey> = {
+  'invalid-path': 'archive.reason.invalidPath',
+  symlink: 'archive.reason.symlink',
+  'entry-too-large': 'archive.reason.entryTooLarge',
+  'total-limit': 'archive.reason.totalLimit',
+};
+
+/** The user-facing wording of a rejection, in the interface language. */
+export function archiveReasonMessage(reason: ArchiveRejectionReason, t: Translator): string {
+  return t(REASON_KEYS[reason]);
+}
 
 const MAX_SEGMENT_LENGTH = 120;
 const MAX_PATH_LENGTH = 240;
@@ -90,20 +110,20 @@ export function classifyArchiveEntries(entries: ArchiveEntryInfo[], limits: Arch
   for (const entry of entries.slice(0, limits.maxEntries)) {
     const normalized = normalizeArchivePath(entry.path);
     if (normalized === null) {
-      rejected.push({ accept: false, path: entry.path, reason: 'caminho inválido' });
+      rejected.push({ accept: false, path: entry.path, reason: 'invalid-path' });
       continue;
     }
     if (isSymlinkEntry(entry)) {
-      rejected.push({ accept: false, path: entry.path, reason: 'link simbólico' });
+      rejected.push({ accept: false, path: entry.path, reason: 'symlink' });
       continue;
     }
     const size = Number.isFinite(entry.sizeBytes) ? entry.sizeBytes : 0;
     if (size > limits.maxEntryBytes) {
-      rejected.push({ accept: false, path: entry.path, reason: 'ficheiro demasiado grande' });
+      rejected.push({ accept: false, path: entry.path, reason: 'entry-too-large' });
       continue;
     }
     if (totalBytes + size > limits.maxTotalBytes) {
-      rejected.push({ accept: false, path: entry.path, reason: 'limite total excedido' });
+      rejected.push({ accept: false, path: entry.path, reason: 'total-limit' });
       truncated = true;
       continue;
     }

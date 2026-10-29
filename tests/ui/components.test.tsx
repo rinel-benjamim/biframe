@@ -10,8 +10,9 @@ import {
   StatusChip,
   Switch,
 } from '@renderer/components/ui';
-import type { Diagnostic, RenderProgress, ValidationCheck } from '@shared/types';
-import type { AppNotice } from '@renderer/lib/store';
+import type { Diagnostic, RenderProgress, SerializedError, ValidationCheck } from '@shared/types';
+import { createTranslator } from '@shared/i18n';
+import { TranslatorProvider, localizedErrorTitle, type AppNotice } from '@renderer/lib/store';
 
 const checks: ValidationCheck[] = [
   { id: 'a', label: 'Contentor MP4', status: 'pass', detail: 'mov,mp4' },
@@ -176,5 +177,56 @@ describe('StatusChip', () => {
     expect(screen.getByText('A verificar…').closest('.chip')).toHaveAttribute('data-tone', 'muted');
     rerender(<StatusChip status="broken" />);
     expect(screen.getByText('Motor incompleto').closest('.chip')).toHaveAttribute('data-tone', 'bad');
+  });
+});
+
+describe('interface language', () => {
+  it('defaults to Portuguese when no provider is mounted', () => {
+    render(<StatusChip status="ready" />);
+    expect(screen.getByText('Motor pronto')).toBeInTheDocument();
+  });
+
+  it('renders every label in English under an English provider', () => {
+    render(
+      <TranslatorProvider language="en">
+        <StatusChip status="ready" />
+        <CheckList checks={checks} />
+        <DiagnosticSummary diagnostics={[]} />
+      </TranslatorProvider>,
+    );
+    expect(screen.getByText('Engine ready')).toBeInTheDocument();
+    expect(screen.getByLabelText('Passed')).toHaveTextContent('✓');
+    expect(screen.getByText('No warnings')).toBeInTheDocument();
+  });
+
+  it('re-renders an existing subtree when the language changes', () => {
+    const { rerender } = render(
+      <TranslatorProvider language="pt">
+        <StatusChip status="ready" />
+      </TranslatorProvider>,
+    );
+    expect(screen.getByText('Motor pronto')).toBeInTheDocument();
+    rerender(
+      <TranslatorProvider language="en">
+        <StatusChip status="ready" />
+      </TranslatorProvider>,
+    );
+    expect(screen.getByText('Engine ready')).toBeInTheDocument();
+    expect(screen.queryByText('Motor pronto')).not.toBeInTheDocument();
+  });
+
+  it('re-renders serialized errors in the active language', () => {
+    const error: SerializedError = {
+      code: 'OUTPUT_DIRECTORY_INVALID',
+      title: 'Pasta de saída inválida',
+      message: 'A pasta escolhida não existe ou não tem permissão de escrita.',
+      recoverable: true,
+    };
+    render(
+      <TranslatorProvider language="en">
+        <Notice notice={{ id: 1, kind: 'error', title: localizedErrorTitle(error, createTranslator('en')) }} />
+      </TranslatorProvider>,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Invalid output folder');
   });
 });

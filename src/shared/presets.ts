@@ -1,3 +1,4 @@
+import { createTranslator, defaultTranslator, type Language, type MessageKey } from './i18n';
 import type {
   AspectRatioId,
   QualityPreset,
@@ -27,47 +28,77 @@ export const MAX_FPS = 60;
 export const DEFAULT_WIDTH = 1280;
 export const DEFAULT_HEIGHT = 720;
 
+/** Human labels come from the message catalog in the default language; use
+ * `localizedAspectRatios`, `localizedResolutionPresets` and
+ * `localizedQualityPresets` to render them in the interface language. */
+const t = defaultTranslator;
+
 export const ASPECT_RATIOS: { id: AspectRatioId; label: string; ratio: number }[] = [
   { id: '16:9', label: '16:9', ratio: 16 / 9 },
   { id: '9:16', label: '9:16', ratio: 9 / 16 },
   { id: '1:1', label: '1:1', ratio: 1 },
   { id: '4:5', label: '4:5', ratio: 4 / 5 },
-  { id: 'custom', label: 'Personalizado', ratio: 0 },
+  { id: 'custom', label: t('preset.aspect.custom'), ratio: 0 },
 ];
 
 export const RESOLUTION_PRESETS: ResolutionPreset[] = [
-  { id: '720p', label: '720p', detail: '1280 × 720', width: 1280, height: 720, aspect: '16:9' },
-  { id: '1080p', label: '1080p', detail: '1920 × 1080', width: 1920, height: 1080, aspect: '16:9' },
-  { id: '1440p', label: '1440p', detail: '2560 × 1440', width: 2560, height: 1440, aspect: '16:9', demanding: true },
-  { id: '2160p', label: '4K', detail: '3840 × 2160', width: 3840, height: 2160, aspect: '16:9', demanding: true },
-  { id: 'vertical-1080', label: 'Vertical', detail: '1080 × 1920', width: 1080, height: 1920, aspect: '9:16' },
-  { id: 'square-1080', label: 'Quadrado', detail: '1080 × 1080', width: 1080, height: 1080, aspect: '1:1' },
-  { id: 'social-1080', label: 'Feed 4:5', detail: '1080 × 1350', width: 1080, height: 1350, aspect: '4:5' },
+  { id: '720p', label: t('preset.resolution.720p.label'), detail: '1280 × 720', width: 1280, height: 720, aspect: '16:9' },
+  { id: '1080p', label: t('preset.resolution.1080p.label'), detail: '1920 × 1080', width: 1920, height: 1080, aspect: '16:9' },
+  { id: '1440p', label: t('preset.resolution.1440p.label'), detail: '2560 × 1440', width: 2560, height: 1440, aspect: '16:9', demanding: true },
+  { id: '2160p', label: t('preset.resolution.2160p.label'), detail: '3840 × 2160', width: 3840, height: 2160, aspect: '16:9', demanding: true },
+  { id: 'vertical-1080', label: t('preset.resolution.vertical-1080.label'), detail: '1080 × 1920', width: 1080, height: 1920, aspect: '9:16' },
+  { id: 'square-1080', label: t('preset.resolution.square-1080.label'), detail: '1080 × 1080', width: 1080, height: 1080, aspect: '1:1' },
+  { id: 'social-1080', label: t('preset.resolution.social-1080.label'), detail: '1080 × 1350', width: 1080, height: 1350, aspect: '4:5' },
 ];
 
 export const QUALITY_PRESETS: QualityPreset[] = [
   {
     id: 'compact',
-    label: 'Ficheiro mais pequeno',
-    description: 'CRF 26 · ficheiros leves para partilha rápida',
+    label: t('preset.quality.compact.label'),
+    description: t('preset.quality.compact.description'),
     crf: 26,
     x264Preset: 'medium',
   },
   {
     id: 'balanced',
-    label: 'Equilibrada',
-    description: 'CRF 21 · bom compromisso entre qualidade e tamanho',
+    label: t('preset.quality.balanced.label'),
+    description: t('preset.quality.balanced.description'),
     crf: 21,
     x264Preset: 'medium',
   },
   {
     id: 'high',
-    label: 'Alta qualidade',
-    description: 'CRF 17 · detalhe alto para texto e gráficos',
+    label: t('preset.quality.high.label'),
+    description: t('preset.quality.high.description'),
     crf: 17,
     x264Preset: 'slow',
   },
 ];
+
+export function localizedAspectRatios(language: Language): { id: AspectRatioId; label: string; ratio: number }[] {
+  const translate = createTranslator(language);
+  return ASPECT_RATIOS.map((ratio) => ({
+    ...ratio,
+    label: ratio.id === 'custom' ? translate('preset.aspect.custom') : ratio.label,
+  }));
+}
+
+export function localizedResolutionPresets(language: Language): ResolutionPreset[] {
+  const translate = createTranslator(language);
+  return RESOLUTION_PRESETS.map((preset) => ({
+    ...preset,
+    label: translate(`preset.resolution.${preset.id}.label` as MessageKey),
+  }));
+}
+
+export function localizedQualityPresets(language: Language): QualityPreset[] {
+  const translate = createTranslator(language);
+  return QUALITY_PRESETS.map((preset) => ({
+    ...preset,
+    label: translate(`preset.quality.${preset.id}.label`),
+    description: translate(`preset.quality.${preset.id}.description`),
+  }));
+}
 
 export const DEFAULT_QUALITY: QualityPresetId = 'balanced';
 

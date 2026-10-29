@@ -1,3 +1,4 @@
+import type { Translator } from '@shared/i18n';
 import type { RenderSettings, ValidationCheck, ValidationReport, VideoMetadata } from '@shared/types';
 
 /**
@@ -76,6 +77,8 @@ export function parseFfprobeDocument(document: FfprobeDocument): ProbeParseResul
 }
 
 export interface ValidationInput {
+  /** Translator for the check labels and details shown on the result screen. */
+  t: Translator;
   metadata: VideoMetadata;
   formatName: string;
   audioStreams: number;
@@ -88,48 +91,53 @@ export interface ValidationInput {
 const FRAME_TOLERANCE = 3;
 
 export function validateOutput(input: ValidationInput): ValidationReport {
-  const { metadata, formatName, audioStreams, sizeBytes, settings, requestedDurationSeconds, expectedFrames } = input;
+  const { t, metadata, formatName, audioStreams, sizeBytes, settings, requestedDurationSeconds, expectedFrames } = input;
   const checks: ValidationCheck[] = [];
 
   checks.push({
     id: 'file-size',
-    label: 'O ficheiro existe e não está vazio',
+    label: t('check.fileSize'),
     status: sizeBytes > 0 ? 'pass' : 'fail',
     detail: `${sizeBytes} bytes`,
   });
 
   checks.push({
     id: 'container',
-    label: 'Contentor MP4',
+    label: t('check.container'),
     status: formatName.includes('mp4') ? 'pass' : 'fail',
     detail: formatName,
   });
 
   checks.push({
     id: 'codec',
-    label: 'Codec de vídeo H.264',
+    label: t('check.codec'),
     status: metadata.codec === 'h264' ? 'pass' : 'fail',
     detail: `${metadata.codec}${metadata.profile ? ` (${metadata.profile})` : ''}`,
   });
 
   checks.push({
     id: 'resolution',
-    label: 'Resolução exata',
+    label: t('check.resolution'),
     status: metadata.width === settings.width && metadata.height === settings.height ? 'pass' : 'fail',
-    detail: `${metadata.width} × ${metadata.height} (pedido: ${settings.width} × ${settings.height})`,
+    detail: t('check.resolutionDetail', {
+      width: metadata.width,
+      height: metadata.height,
+      requestedWidth: settings.width,
+      requestedHeight: settings.height,
+    }),
   });
 
   const fpsDelta = Math.abs(metadata.fps - settings.fps);
   checks.push({
     id: 'fps',
-    label: 'FPS constante',
+    label: t('check.fps'),
     status: fpsDelta <= 0.05 ? 'pass' : 'fail',
-    detail: `${metadata.fps} fps (pedido: ${settings.fps})`,
+    detail: t('check.fpsDetail', { fps: metadata.fps, requested: settings.fps }),
   });
 
   checks.push({
     id: 'pixel-format',
-    label: 'Formato de pixel yuv420p',
+    label: t('check.pixelFormat'),
     status: metadata.pixFmt === 'yuv420p' ? 'pass' : 'fail',
     detail: metadata.pixFmt,
   });
@@ -140,26 +148,30 @@ export function validateOutput(input: ValidationInput): ValidationReport {
   const durationDelta = Math.abs(metadata.durationSeconds - requestedDurationSeconds);
   checks.push({
     id: 'duration',
-    label: 'Duração coerente com a configuração',
+    label: t('check.duration'),
     status: durationDelta <= durationToleranceSeconds ? 'pass' : 'fail',
-    detail: `${metadata.durationSeconds.toFixed(2)} s (pedido: ${requestedDurationSeconds.toFixed(2)} s, tolerância ±${durationToleranceSeconds.toFixed(2)} s)`,
+    detail: t('check.durationDetail', {
+      duration: metadata.durationSeconds.toFixed(2),
+      requested: requestedDurationSeconds.toFixed(2),
+      tolerance: durationToleranceSeconds.toFixed(2),
+    }),
   });
 
   if (metadata.frames !== null) {
     const frameDelta = Math.abs(metadata.frames - expectedFrames);
     checks.push({
       id: 'frames',
-      label: 'Número de frames',
+      label: t('check.frames'),
       status: frameDelta <= FRAME_TOLERANCE ? 'pass' : 'warn',
-      detail: `${metadata.frames} frames (esperado: ~${expectedFrames})`,
+      detail: t('check.framesDetail', { frames: metadata.frames, expected: expectedFrames }),
     });
   }
 
   checks.push({
     id: 'audio',
-    label: 'Sem faixa de áudio (áudio não suportado no MVP)',
+    label: t('check.audio'),
     status: audioStreams === 0 ? 'pass' : 'warn',
-    detail: audioStreams === 0 ? 'sem áudio, como configurado' : `${audioStreams} faixa(s) de áudio presentes`,
+    detail: audioStreams === 0 ? t('check.audioNone') : t('check.audioPresent', { count: audioStreams }),
   });
 
   const ok = checks.every((check) => check.status !== 'fail');

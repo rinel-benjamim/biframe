@@ -1,4 +1,10 @@
-/** Formatting helpers shared by the interface and the logs. Portuguese (pt-PT) conventions. */
+/** Formatting helpers shared by the interface and the logs.
+ *
+ * Every function that can sound different in Portuguese and English takes the
+ * interface language as its last parameter and defaults to Portuguese, so call
+ * sites that predate the language setting keep their behaviour.
+ */
+import { createTranslator, DEFAULT_LANGUAGE, localeFor, type Language } from './i18n';
 
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—';
@@ -18,12 +24,13 @@ export function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
 }
 
-/** 36.5 -> "36,5 s"; 75 -> "1 min 15 s" */
-export function formatSeconds(seconds: number): string {
+/** 36.5 -> "36,5 s" (pt) / "36.5 s" (en); 75 -> "1 min 15 s" */
+export function formatSeconds(seconds: number, language: Language = DEFAULT_LANGUAGE): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  const separator = language === 'en' ? '.' : ',';
   if (seconds < 60) {
     const rounded = Math.round(seconds * 10) / 10;
-    return `${String(rounded).replace('.', ',')} s`;
+    return `${String(rounded).replace('.', separator)} s`;
   }
   const minutes = Math.floor(seconds / 60);
   const rest = Math.round(seconds - minutes * 60);
@@ -53,12 +60,15 @@ export function formatFps(fps: number): string {
   return `${fps} fps`;
 }
 
-export function formatNumber(value: number, decimals = 0): string {
-  return value.toLocaleString('pt-PT', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+export function formatNumber(value: number, decimals = 0, language: Language = DEFAULT_LANGUAGE): string {
+  return value.toLocaleString(localeFor(language), {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
-export function formatDateTime(epochMs: number): string {
-  return new Date(epochMs).toLocaleString('pt-PT', {
+export function formatDateTime(epochMs: number, language: Language = DEFAULT_LANGUAGE): string {
+  return new Date(epochMs).toLocaleString(localeFor(language), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -67,17 +77,22 @@ export function formatDateTime(epochMs: number): string {
   });
 }
 
-export function formatRelative(epochMs: number, now = Date.now()): string {
+export function formatRelative(
+  epochMs: number,
+  now = Date.now(),
+  language: Language = DEFAULT_LANGUAGE,
+): string {
+  const t = createTranslator(language);
   const diffSeconds = Math.round((now - epochMs) / 1000);
-  if (diffSeconds < 45) return 'agora mesmo';
+  if (diffSeconds < 45) return t('format.justNow');
   const minutes = Math.round(diffSeconds / 60);
-  if (minutes < 60) return `há ${minutes} min`;
+  if (minutes < 60) return t('format.minutesAgo', { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `há ${hours} h`;
+  if (hours < 24) return t('format.hoursAgo', { count: hours });
   const days = Math.round(hours / 24);
-  if (days === 1) return 'ontem';
-  if (days < 30) return `há ${days} dias`;
-  return formatDateTime(epochMs);
+  if (days === 1) return t('format.yesterday');
+  if (days < 30) return t('format.daysAgo', { count: days });
+  return formatDateTime(epochMs, language);
 }
 
 /** Makes a string safe to use as a file name on Windows, macOS and Linux. */

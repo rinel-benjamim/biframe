@@ -9,7 +9,9 @@ import {
   type ReactNode,
 } from 'react';
 import type { BootstrapPayload } from '@shared/channels';
+import { isErrorCode } from '@shared/errors';
 import { formatBytes, formatNumber, sanitizeFileName, ensureExtension } from '@shared/format';
+import { createTranslator, DEFAULT_LANGUAGE, type Language, type Translator } from '@shared/i18n';
 import { defaultRenderSettings } from '@shared/presets';
 import type {
   AppSettings,
@@ -127,6 +129,55 @@ const initialState: AppState = {
 const AppStateContext = createContext<AppState | null>(null);
 const AppActionsContext = createContext<AppActions | null>(null);
 
+/**
+ * The translator the whole interface wears. It lives in the store rather than
+ * in a separate provider because the actions (notices, error titles) need it
+ * too, and it must change the moment Definições changes the language.
+ */
+const TranslatorContext = createContext<Translator>(createTranslator(DEFAULT_LANGUAGE));
+
+/** The language itself, separate from the translator so consumers that only
+ * need the locale (format helpers) do not depend on store state. */
+const LanguageContext = createContext<Language>(DEFAULT_LANGUAGE);
+
+/** Replaces a hardcoded sentence with its catalog key in the active language. */
+export function useT(): Translator {
+  return useContext(TranslatorContext);
+}
+
+/** The active language, for the `format*` helpers that take one.
+ * Defaults to Portuguese outside the provider (unit tests, isolated mounts),
+ * mirroring `useT`. */
+export function useLanguage(): Language {
+  return useContext(LanguageContext);
+}
+
+/**
+ * A serialized error carries the engine's copy in the default language. The
+ * code is stable, so the interface can always re-render it in its own language.
+ */
+export function localizedErrorTitle(error: SerializedError, t: Translator): string {
+  return isErrorCode(error.code) ? t(`error.${error.code}.title`) : error.title;
+}
+
+export function localizedErrorMessage(error: SerializedError, t: Translator): string {
+  return isErrorCode(error.code) ? t(`error.${error.code}.message`) : error.message;
+}
+
+/**
+ * Puts a language around an isolated mount — component tests, portals or any
+ * subtree rendered outside the full `AppProvider`. The application itself uses
+ * `AppProvider`, which provides the same two contexts from the saved settings.
+ */
+export function TranslatorProvider({ language, children }: { language: Language; children: ReactNode }): ReactNode {
+  const translator = useMemo(() => createTranslator(language), [language]);
+  return (
+    <TranslatorContext.Provider value={translator}>
+      <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>
+    </TranslatorContext.Provider>
+  );
+}
+
 function suggestedFileName(projectName: string | null): string {
   if (!projectName) return 'biframe-export.mp4';
   const base = projectName.replace(/\.(html?|xhtml|zip)$/i, '');
@@ -151,6 +202,9 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
   const noticeCounter = useRef(0);
   const previewVisibleRef = useRef(false);
 
+  const language = state.settings?.language ?? DEFAULT_LANGUAGE;
+  const t = useMemo<Translator>(() => createTranslator(language), [language]);
+
   const notify = useCallback((notice: Omit<AppNotice, 'id'>): void => {
     noticeCounter.current += 1;
     setState((previous) => ({ ...previous, notice: { ...notice, id: noticeCounter.current } }));
@@ -162,11 +216,11 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       notify({
         kind: 'error',
         title,
-        message: serialized.title,
-        detail: serialized.detail ?? serialized.message,
+        message: localizedErrorTitle(serialized, t),
+        detail: serialized.detail ?? localizedErrorMessage(serialized, t),
       });
     },
-    [notify],
+    [notify, t],
   );
 
   const refreshHistory = useCallback(async (): Promise<void> => {
@@ -254,14 +308,14 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         // toast would cover the filmstrip it points to.
         void refreshHistory();
       } else if (event.job.status === 'cancelled') {
-        notify({ kind: 'info', title: 'Renderização cancelada', message: 'Não foi escrito nenhum ficheiro.' });
+        notify({ kind: 'info', title: t('ui.notice.renderCancelled.title'), message: t('ui.notice.renderCancelled.message') });
       } else {
         const serialized = event.job.error;
         notify({
           kind: 'error',
-          title: 'A exportação não terminou',
-          message: serialized?.title ?? 'Erro desconhecido',
-          detail: serialized?.detail ?? serialized?.message,
+          title: t('ui.notice.exportFailed.title'),
+          message: serialized ? localizedErrorTitle(serialized, t) : t('ui.notice.unknownError'),
+          detail: serialized?.detail ?? (serialized ? localizedErrorMessage(serialized, t) : undefined),
         });
       }
     });
@@ -306,7 +360,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       unsubscribeCompleted();
       unsubscribeTheme();
     };
-  }, [notify, refreshHistory]);
+  }, [notify, refreshHistory, t]);
 
   /** The main process owns theme resolution; the shell only wears the answer. */
   useEffect(() => {
@@ -319,9 +373,9 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
   }, [state.platform]);
 
   useEffect(() => {
-    const scope = state.project?.name ?? 'da web para vídeo';
+    const scope = state.project?.name ?? t('ui.app.tagline');
     document.title = `Biframe — ${scope}`;
-  }, [state.project?.name]);
+  }, [state.project?.name, t]);
 
   const actions = useMemo<AppActions>(() => {
     const runImport = async (
@@ -331,8 +385,8 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       if (stateRef.current.jobs.some((job) => job.status === 'running')) {
         notify({
           kind: 'warning',
-          title: 'Uma renderização está em curso',
-          message: 'Espere que termine ou cancele antes de importar outro projeto.',
+          title: t('ui.notice.renderInRun.title'),
+          message: t('ui.notice.renderInRun.import.message'),
         });
         return;
       }
@@ -341,12 +395,12 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         const imported = unwrap(await task());
         if (imported.canceled) return;
         if (imported.error) {
-          notifyError('Não foi possível importar o projeto', new ApiError(imported.error));
+          notifyError(t('ui.action.importFailed'), new ApiError(imported.error));
           return;
         }
         if (imported.project) await adoptProject(imported.project);
       } catch (error) {
-        notifyError('Não foi possível importar o projeto', error);
+        notifyError(t('ui.action.importFailed'), error);
       } finally {
         setState((previous) => ({ ...previous, importBusy: false }));
       }
@@ -362,8 +416,8 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         if (stateRef.current.jobs.some((job) => job.status === 'running')) {
           notify({
             kind: 'warning',
-            title: 'Uma renderização está em curso',
-            message: 'Cancele a exportação antes de fechar o projeto.',
+            title: t('ui.notice.renderInRun.title'),
+            message: t('ui.notice.renderInRun.close.message'),
           });
           return;
         }
@@ -378,7 +432,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
             draft: previous.draft ? { ...previous.draft, fileName: 'biframe-export.mp4' } : previous.draft,
           }));
         } catch (error) {
-          notifyError('Não foi possível fechar o projeto', error);
+          notifyError(t('ui.action.closeFailed'), error);
         }
       },
 
@@ -386,7 +440,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           return unwrap(await getBridge().project.pickOutputDir());
         } catch (error) {
-          notifyError('Não foi possível escolher a pasta', error);
+          notifyError(t('ui.action.pickDirFailed'), error);
           return null;
         }
       },
@@ -405,7 +459,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
                 : previous.draft,
           }));
         } catch (error) {
-          notifyError('As definições não foram guardadas', error);
+          notifyError(t('ui.action.settingsNotSaved'), error);
         }
       },
 
@@ -416,11 +470,11 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
           setState((previous) => ({ ...previous, engine }));
           notify(
             engine.ready
-              ? { kind: 'success', title: 'Motor pronto', message: 'FFmpeg, FFprobe e Chromium responderam.' }
-              : { kind: 'warning', title: 'O motor ainda não está completo', message: 'Consulte os detalhes nesta página.' },
+              ? { kind: 'success', title: t('ui.engine.ready.title'), message: t('ui.engine.ready.message') }
+              : { kind: 'warning', title: t('ui.engine.incomplete.title'), message: t('ui.engine.incomplete.message') },
           );
         } catch (error) {
-          notifyError('Não foi possível verificar o motor', error);
+          notifyError(t('ui.action.engineCheckFailed'), error);
         } finally {
           setState((previous) => ({ ...previous, rechecking: false }));
         }
@@ -434,11 +488,14 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
           setState((previous) => ({ ...previous, engine }));
           notify({
             kind: 'success',
-            title: 'Ficheiros temporários removidos',
-            message: `${formatNumber(removed.removedEntries)} ficheiro(s) · ${formatBytes(removed.removedBytes)}`,
+            title: t('ui.temp.cleared.title'),
+            message: t('ui.temp.cleared.message', {
+              files: formatNumber(removed.removedEntries, 0, language),
+              size: formatBytes(removed.removedBytes),
+            }),
           });
         } catch (error) {
-          notifyError('Não foi possível limpar os ficheiros temporários', error);
+          notifyError(t('ui.action.tempClearFailed'), error);
         } finally {
           setState((previous) => ({ ...previous, busy: null }));
         }
@@ -448,7 +505,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           unwrap(await getBridge().app.revealPath(path));
         } catch (error) {
-          notifyError('Não foi possível mostrar o ficheiro', error);
+          notifyError(t('ui.action.revealFailed'), error);
         }
       },
 
@@ -456,7 +513,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           unwrap(await getBridge().app.openPath(path));
         } catch (error) {
-          notifyError('Não foi possível abrir o ficheiro', error);
+          notifyError(t('ui.action.openFailed'), error);
         }
       },
 
@@ -464,7 +521,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           unwrap(await getBridge().preview.reload());
         } catch (error) {
-          notifyError('Não foi possível recarregar a pré-visualização', error);
+          notifyError(t('ui.action.previewReloadFailed'), error);
         }
       },
 
@@ -473,7 +530,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
           unwrap(await getBridge().preview.clearDiagnostics());
           setState((previous) => ({ ...previous, preview: { ...previous.preview, diagnostics: [] } }));
         } catch (error) {
-          notifyError('Não foi possível limpar o diagnóstico', error);
+          notifyError(t('ui.action.diagnosticsClearFailed'), error);
         }
       },
 
@@ -499,8 +556,8 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         if (!stateRef.current.project) {
           notify({
             kind: 'info',
-            title: 'Ainda não há um projeto',
-            message: 'Importe uma página HTML ou um projeto ZIP antes de exportar.',
+            title: t('ui.export.noProject.title'),
+            message: t('ui.export.noProject.message'),
           });
           return;
         }
@@ -539,7 +596,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           unwrap(await getBridge().render.cancel(jobId));
         } catch (error) {
-          notifyError('Não foi possível cancelar a renderização', error);
+          notifyError(t('ui.action.cancelFailed'), error);
         }
       },
 
@@ -555,9 +612,9 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           unwrap(await getBridge().history.clear());
           setState((previous) => ({ ...previous, history: [] }));
-          notify({ kind: 'success', title: 'Histórico limpo', message: 'Os ficheiros exportados não foram apagados.' });
+          notify({ kind: 'success', title: t('ui.history.cleared.title'), message: t('ui.history.cleared.message') });
         } catch (error) {
-          notifyError('Não foi possível limpar o histórico', error);
+          notifyError(t('ui.action.historyClearFailed'), error);
         }
       },
 
@@ -567,13 +624,17 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         setState((previous) => ({ ...previous, notice: null }));
       },
     };
-  }, [adoptProject, notify, notifyError, refreshHistory]);
+  }, [adoptProject, notify, notifyError, refreshHistory, t, language]);
 
   const stateValue = useMemo<AppState>(() => state, [state]);
 
   return (
     <AppActionsContext.Provider value={actions}>
-      <AppStateContext.Provider value={stateValue}>{children}</AppStateContext.Provider>
+      <TranslatorContext.Provider value={t}>
+        <LanguageContext.Provider value={language}>
+          <AppStateContext.Provider value={stateValue}>{children}</AppStateContext.Provider>
+        </LanguageContext.Provider>
+      </TranslatorContext.Provider>
     </AppActionsContext.Provider>
   );
 }

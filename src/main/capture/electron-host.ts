@@ -1,5 +1,6 @@
 import { BrowserWindow, screen, type Rectangle, type WebContents } from 'electron';
 import { BiframeError } from '@shared/errors';
+import { createTranslator, type Language, type Translator } from '@shared/i18n';
 import { parseProtocolDescriptor, type ProtocolDescriptor } from '@shared/protocol';
 import type { Diagnostic } from '@shared/types';
 import {
@@ -119,6 +120,8 @@ export interface CaptureHostOptions {
   logger: Logger;
   /** Resolved on every session so policy changes apply to the next render. */
   policy: () => { projectOrigin: string; allowRemote: boolean };
+  /** Language of every diagnostic this host produces. */
+  getLanguage: () => Language;
 }
 
 export class ElectronCaptureHost implements CaptureSessionHost {
@@ -136,6 +139,7 @@ class ElectronCaptureSession implements CaptureSession {
   private readonly logger: Logger;
   private readonly gateway: ContentGateway;
   private readonly options: CaptureSessionOptions;
+  private readonly getLanguage: () => Language;
   private window: BrowserWindow | null = null;
   private streaming = false;
   private armed = false;
@@ -152,6 +156,12 @@ class ElectronCaptureSession implements CaptureSession {
     this.options = options;
     this.gateway = host.gateway;
     this.logger = host.logger.child(`capture:${options.label}`);
+    this.getLanguage = host.getLanguage;
+  }
+
+  /** Copy is produced per event, so a language change applies to new renders. */
+  private t(): Translator {
+    return createTranslator(this.getLanguage());
   }
 
   private get contents(): WebContents {
@@ -267,7 +277,7 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_LOAD_FAILED',
         severity: 'error',
-        message: 'A página principal não carregou',
+        message: this.t()('capture.mainFrameFailed'),
         detail: `${details.errorCode} ${details.errorDescription}`,
         ...(details.validatedURL ? { url: details.validatedURL } : {}),
       });
@@ -278,7 +288,7 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'RENDER_PROCESS_GONE',
         severity: 'error',
-        message: 'O processo que desenhava a página terminou inesperadamente',
+        message: this.t()('capture.renderProcessGone'),
         detail: `${details.reason} (exitCode ${details.exitCode})`,
       });
       this.logger.log('error', 'renderer gone', { reason: details.reason, exitCode: details.exitCode });
@@ -288,8 +298,8 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_UNRESPONSIVE',
         severity: 'warning',
-        message: 'A página deixou de responder temporariamente',
-        detail: 'O desempenho da animação pode ter sido afetado.',
+        message: this.t()('capture.pageUnresponsive'),
+        detail: this.t()('capture.pageUnresponsiveDetail'),
       });
     });
 
@@ -304,8 +314,8 @@ class ElectronCaptureSession implements CaptureSession {
         this.collector.add({
           code: 'NAVIGATION_BLOCKED',
           severity: 'warning',
-          message: 'A página tentou navegar para fora do projeto',
-          detail: 'A navegação foi bloqueada por segurança.',
+          message: this.t()('capture.navigationBlocked'),
+          detail: this.t()('capture.navigationBlockedDetail'),
           url: url.slice(0, 300),
         });
       }
@@ -315,8 +325,8 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'WINDOW_OPEN_BLOCKED',
         severity: 'info',
-        message: 'A página tentou abrir uma nova janela',
-        detail: 'Janelas abertas pelo conteúdo importado são bloqueadas.',
+        message: this.t()('capture.windowOpen'),
+        detail: this.t()('capture.windowOpenDetail'),
         url: url.slice(0, 300),
       });
       return { action: 'deny' };
@@ -327,8 +337,8 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'WEBVIEW_BLOCKED',
         severity: 'info',
-        message: 'A página tentou criar um webview',
-        detail: 'Webviews em conteúdo importado são bloqueados.',
+        message: this.t()('capture.webviewBlocked'),
+        detail: this.t()('capture.webviewBlockedDetail'),
       });
     });
 
@@ -339,7 +349,7 @@ class ElectronCaptureSession implements CaptureSession {
   }
 
   private addConsole(level: string | number, message: string, sourceId?: string, line?: number): void {
-    const input = consoleDiagnosticInput(level, message, sourceId, line);
+    const input = consoleDiagnosticInput(this.t(), level, message, sourceId, line);
     if (input) this.collector.add(input);
   }
 
@@ -362,7 +372,7 @@ class ElectronCaptureSession implements CaptureSession {
         this.collector.add({
           code: 'FRAME_CAPTURE_FAILED',
           severity: 'error',
-          message: 'A ligação ao motor de captura foi interrompida',
+          message: this.t()('capture.connectionLost'),
           detail: reason,
         });
       }
@@ -510,7 +520,7 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_NEVER_IDLE',
         severity: 'warning',
-        message: 'A página demorou a estabilizar (fontes ou imagens)',
+        message: this.t()('capture.slowStabilize'),
         detail: String(error),
       });
     }
@@ -525,7 +535,7 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_WARNING',
         severity: 'warning',
-        message: 'Não foi possível inspecionar a página',
+        message: this.t()('capture.inspectFailed'),
         detail: String(error),
       });
       return emptyInspection({ title: this.title });
@@ -597,8 +607,8 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_WARNING',
         severity: 'warning',
-        message: 'A instrumentação não respondeu após o recarregamento',
-        detail: 'O início da animação foi aproximado pelo momento da navegação.',
+        message: this.t()('capture.instrumentationSilent'),
+        detail: this.t()('capture.instrumentationSilentDetail'),
       });
     }
 
@@ -606,8 +616,8 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_WARNING',
         severity: 'warning',
-        message: 'A página impediu a instrumentação de observar o arranque',
-        detail: 'O início da animação foi aproximado pelo momento do recarregamento.',
+        message: this.t()('capture.instrumentationBlocked'),
+        detail: this.t()('capture.instrumentationBlockedDetail'),
       });
     }
 
@@ -615,7 +625,7 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'SCRIPT_ERROR',
         severity: 'warning',
-        message: 'A página lançou erros de JavaScript durante a animação',
+        message: this.t()('capture.scriptErrors'),
         detail: probe.errors.slice(0, 3).join(' | '),
       });
     }
@@ -624,8 +634,11 @@ class ElectronCaptureSession implements CaptureSession {
       this.collector.add({
         code: 'PAGE_WARNING',
         severity: 'warning',
-        message: 'O tamanho da página teve de ser corrigido para a resolução pedida',
-        detail: `A página reportou ${probe.innerWidth} × ${probe.innerHeight}, o pedido é ${this.options.width} × ${this.options.height}.`,
+        message: this.t()('capture.viewportCorrected'),
+        detail: this.t()('capture.viewportCorrectedDetail', {
+          reported: `${probe.innerWidth} × ${probe.innerHeight}`,
+          requested: `${this.options.width} × ${this.options.height}`,
+        }),
       });
       await this.applyDeviceMetrics();
     }
@@ -638,8 +651,8 @@ class ElectronCaptureSession implements CaptureSession {
         this.collector.add({
           code: 'PAGE_WARNING',
           severity: 'info',
-          message: 'A página declara suporte para captura determinística',
-          detail: 'Esta versão captura em tempo real e não usa onSeek; a duração declarada é respeitada.',
+          message: this.t()('capture.deterministicSupport'),
+          detail: this.t()('capture.deterministicSupportDetail'),
         });
       }
     } catch {

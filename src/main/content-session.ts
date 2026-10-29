@@ -1,5 +1,6 @@
 import dns from 'node:dns/promises';
 import { session as electronSession, type Session } from 'electron';
+import { createTranslator, type Language, type Translator } from '@shared/i18n';
 import type { DiagnosticInput } from '../engine/diagnostics';
 import { classifyResource, hostFromUrl, isPrivateAddressList, isPrivateHost } from '../engine/network/policy';
 import type { Logger } from './log';
@@ -39,20 +40,22 @@ export class ContentGateway {
   private readonly sinks = new Map<number, ContentDiagnosticSink>();
   private readonly dnsCache = new Map<string, Promise<boolean>>();
   private policy: ContentPolicy = { projectOrigin: '', allowRemote: true };
+  private readonly getLanguage: () => Language;
   private readonly reportedHosts = new Set<string>();
   private requestCount = 0;
   private blockedCount = 0;
   private failureCount = 0;
 
-  constructor(name: string, logger: Logger) {
+  constructor(name: string, logger: Logger, getLanguage: () => Language) {
     this.logger = logger.child('content');
+    this.getLanguage = getLanguage;
     this.session = electronSession.fromPartition(`persist:biframe-${name}`);
     this.session.setSpellCheckerEnabled(false);
     this.session.setPermissionRequestHandler((_contents, permission, callback) => {
       this.report(undefined, {
         code: 'PERMISSION_BLOCKED',
         severity: 'info',
-        message: 'A página pediu uma permissão que foi negada',
+        message: this.t()('diag.permissionDenied'),
         detail: permission,
       });
       callback(false);
@@ -65,11 +68,16 @@ export class ContentGateway {
       this.report(undefined, {
         code: 'DOWNLOAD_BLOCKED',
         severity: 'info',
-        message: 'Um download iniciado pela página foi bloqueado',
+        message: this.t()('diag.downloadBlocked'),
         url: item.getURL().slice(0, 300),
       });
     });
     this.registerRequestHandlers();
+  }
+
+  /** Copy is produced per event, so a language change applies immediately. */
+  private t(): Translator {
+    return createTranslator(this.getLanguage());
   }
 
   setPolicy(policy: ContentPolicy): void {
@@ -137,9 +145,7 @@ export class ContentGateway {
       this.report(details.webContentsId, {
         code: isFont ? 'FONT_FALLBACK' : 'MISSING_RESOURCE',
         severity: 'warning',
-        message: isFont
-          ? 'Uma fonte externa não carregou; o texto pode aparecer com uma fonte alternativa'
-          : 'Um recurso da página não carregou',
+        message: isFont ? this.t()('diag.fontFallback') : this.t()('diag.resourceMissing'),
         detail: `${details.error} (${details.resourceType})`,
         url: details.url.slice(0, 500),
       });
@@ -183,8 +189,8 @@ export class ContentGateway {
         this.report(details.webContentsId, {
           code: 'REMOTE_RESOURCE_BLOCKED',
           severity: 'info',
-          message: 'Recursos externos estão desativados nas definições',
-          detail: 'Ative "Permitir recursos externos" para carregar fontes e imagens da internet.',
+          message: this.t()('diag.remoteDisabled'),
+          detail: this.t()('diag.remoteDisabledDetail'),
           url: `${host ?? decision.detail}`,
         });
       }
@@ -198,8 +204,8 @@ export class ContentGateway {
         this.report(details.webContentsId, {
           code: 'PRIVATE_NETWORK_BLOCKED',
           severity: 'warning',
-          message: 'Um pedido para a rede local foi bloqueado',
-          detail: `O endereço ${decision.detail} pertence a uma rede privada.`,
+          message: this.t()('diag.privateNetworkBlocked'),
+          detail: this.t()('diag.privateNetwork', { host: decision.detail }),
           url: details.url.slice(0, 300),
         });
       }
@@ -213,7 +219,7 @@ export class ContentGateway {
         this.report(details.webContentsId, {
           code: 'REMOTE_RESOURCE_BLOCKED',
           severity: 'info',
-          message: 'Um recurso usou um protocolo não permitido',
+          message: this.t()('diag.protocolNotAllowed'),
           detail: decision.detail,
         });
       }
@@ -227,8 +233,8 @@ export class ContentGateway {
       this.report(details.webContentsId, {
         code: 'REMOTE_RESOURCE_BLOCKED',
         severity: 'warning',
-        message: 'Um pedido externo não permitido foi bloqueado',
-        detail: `Método ${details.method} para um host externo.`,
+        message: this.t()('diag.requestBlocked'),
+        detail: this.t()('diag.requestBlockedDetail', { method: details.method }),
         url: details.url.slice(0, 300),
       });
       return 'block';
@@ -243,8 +249,8 @@ export class ContentGateway {
         this.report(details.webContentsId, {
           code: 'PRIVATE_NETWORK_BLOCKED',
           severity: 'warning',
-          message: 'Um pedido para a rede local foi bloqueado',
-          detail: `O nome ${host} resolve para uma rede privada ou não foi possível resolver.`,
+          message: this.t()('diag.privateNetworkBlocked'),
+          detail: this.t()('diag.hostResolveFailed', { host }),
           url: details.url.slice(0, 300),
         });
       }

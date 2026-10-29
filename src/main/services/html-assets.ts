@@ -1,5 +1,6 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import type { Translator } from '@shared/i18n';
 import type { DiagnosticInput } from '../../engine/diagnostics';
 
 /**
@@ -106,8 +107,10 @@ export async function collectSingleHtmlProject(options: {
   htmlPath: string;
   destinationRoot: string;
   limits: HtmlAssetLimits;
+  /** Translator for every diagnostic this scan produces. */
+  t: Translator;
 }): Promise<HtmlAssetResult> {
-  const { htmlPath, destinationRoot, limits } = options;
+  const { htmlPath, destinationRoot, limits, t } = options;
   const sourceDir = path.dirname(path.resolve(htmlPath));
   // Resolve the source directory once so a symlinked/junctioned asset cannot
   // escape it through a path that only looks contained lexically.
@@ -176,8 +179,8 @@ export async function collectSingleHtmlProject(options: {
       diagnostics.push({
         code: 'HTML_ONLY_PROJECT',
         severity: 'warning',
-        message: 'Um recurso apontava para fora da pasta do HTML e não foi copiado',
-        detail: `${item.relative} resolve fora da pasta de origem. Importe o projeto como .zip sem links simbólicos.`,
+        message: t('assets.outsideFolder'),
+        detail: t('assets.outsideFolderDetail', { relative: item.relative }),
       });
       continue;
     }
@@ -186,7 +189,7 @@ export async function collectSingleHtmlProject(options: {
       diagnostics.push({
         code: 'ZIP_ENTRY_SKIPPED',
         severity: 'warning',
-        message: 'Um ficheiro do projeto foi ignorado por exceder o limite',
+        message: t('assets.fileSkipped'),
         detail: `${item.relative} (${stat.size} bytes)`,
       });
       continue;
@@ -217,8 +220,8 @@ export async function collectSingleHtmlProject(options: {
       diagnostics.push({
         code: 'MISSING_RESOURCE',
         severity: 'warning',
-        message: 'Um recurso referenciado pelo HTML não existe junto do ficheiro',
-        detail: 'O caminho foi resolvido dentro da pasta do HTML mas o ficheiro não foi encontrado.',
+        message: t('assets.missingFile'),
+        detail: t('assets.missingFileDetail'),
         url: reference,
       });
     }
@@ -227,23 +230,23 @@ export async function collectSingleHtmlProject(options: {
     diagnostics.push({
       code: 'HTML_ONLY_PROJECT',
       severity: 'info',
-      message: 'Alguns recursos não foram copiados',
-      detail: `${skipped.length} referência(s) fora da pasta do HTML ou acima dos limites configurados. Importe o projeto como .zip para os incluir.`,
+      message: t('assets.skipped'),
+      detail: t('assets.skippedDetail', { count: skipped.length }),
     });
   }
   if (remoteHosts.size > 0) {
     diagnostics.push({
       code: 'REMOTE_RESOURCES',
       severity: 'info',
-      message: 'O projeto usa recursos externos',
+      message: t('diag.remoteResources'),
       detail: [...remoteHosts].slice(0, 8).join(', '),
     });
   }
   diagnostics.push({
     code: 'HTML_ONLY_PROJECT',
     severity: 'info',
-    message: 'Projeto importado a partir de um único ficheiro HTML',
-    detail: `${copied.length} recurso(s) local(is) copiado(s). Caminhos construídos em JavaScript não podem ser analisados; nesse caso importe um .zip.`,
+    message: t('assets.htmlOnly'),
+    detail: t('assets.htmlOnlyDetail', { count: copied.length }),
   });
 
   return {

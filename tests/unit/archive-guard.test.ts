@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
+import { createTranslator } from '@shared/i18n';
 import {
+  archiveReasonMessage,
   classifyArchiveEntries,
   isSymlinkEntry,
   normalizeArchivePath,
@@ -77,7 +79,7 @@ describe('classifyArchiveEntries', () => {
       limits,
     );
     expect(plan.accepted.map((item) => item.path)).toEqual(['index.html']);
-    expect(plan.rejected.map((item) => item.reason)).toEqual(['caminho inválido', 'link simbólico']);
+    expect(plan.rejected.map((item) => item.reason)).toEqual(['invalid-path', 'symlink']);
   });
 
   it('rejects oversized entries and total-budget overflows', () => {
@@ -91,8 +93,8 @@ describe('classifyArchiveEntries', () => {
     );
     expect(plan.accepted.map((item) => item.path)).toEqual(['a.bin']);
     expect(plan.rejected.map((item) => item.reason)).toEqual([
-      'ficheiro demasiado grande',
-      'limite total excedido',
+      'entry-too-large',
+      'total-limit',
     ]);
     expect(plan.truncated).toBe(true);
   });
@@ -138,5 +140,15 @@ describe('pickHtmlEntry', () => {
 
   it('returns null when there is no HTML', () => {
     expect(pickHtmlEntry(['style.css', 'image.png'])).toBeNull();
+  });
+});
+
+describe('archiveReasonMessage', () => {
+  it('renders each rejection reason in the interface language', () => {
+    expect(archiveReasonMessage('invalid-path', createTranslator('pt'))).toBe('caminho inválido');
+    expect(archiveReasonMessage('invalid-path', createTranslator('en'))).toBe('invalid path');
+    expect(archiveReasonMessage('symlink', createTranslator('en'))).toBe('symbolic link');
+    expect(archiveReasonMessage('entry-too-large', createTranslator('en'))).toBe('file too large');
+    expect(archiveReasonMessage('total-limit', createTranslator('en'))).toBe('total limit exceeded');
   });
 });

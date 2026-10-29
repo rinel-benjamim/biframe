@@ -11,13 +11,15 @@ import {
   formatResolution,
   formatSeconds,
 } from '@shared/format';
-import { STATUS_LABELS } from '../lib/labels';
-import { useAppActions, useAppState } from '../lib/store';
+import { statusLabel } from '../lib/labels';
+import { localizedErrorMessage, useAppActions, useAppState, useLanguage, useT } from '../lib/store';
 import { Mark } from '../components/ui';
 
 export function HistoryScreen(): ReactNode {
   const { history, jobs } = useAppState();
   const { setView, openResult, reveal, clearHistory } = useAppActions();
+  const t = useT();
+  const language = useLanguage();
   const [confirming, setConfirming] = useState(false);
 
   const completed = history.filter((entry) => entry.status === 'completed').length;
@@ -27,11 +29,10 @@ export function HistoryScreen(): ReactNode {
     <>
       <header className="page-head">
         <div className="page-head__text">
-          <p className="eyebrow">Arquivo</p>
-          <h1>Histórico</h1>
+          <p className="eyebrow">{t('ui.history.eyebrow')}</p>
+          <h1>{t('ui.view.history')}</h1>
           <p className="page-head__sub">
-            As últimas {formatNumber(history.length)} exportações, com o estado real de cada uma. Os
-            ficheiros ficam onde os guardou; limpar esta lista não os apaga.
+            {t('ui.history.sub', { count: formatNumber(history.length, 0, language) })}
           </p>
         </div>
         <div className="page-head__actions">
@@ -42,7 +43,7 @@ export function HistoryScreen(): ReactNode {
             disabled={history.length === 0 || confirming}
           >
             <Trash2 size={15} aria-hidden="true" />
-            Limpar histórico
+            {t('ui.history.clear')}
           </button>
         </div>
       </header>
@@ -51,11 +52,8 @@ export function HistoryScreen(): ReactNode {
         <div className="notice" data-kind="warn" role="alert">
           <Trash2 size={17} aria-hidden="true" className="notice__icon notice__icon--warning" />
           <div className="notice__body">
-            <div className="notice__title">Limpar todo o histórico?</div>
-            <div className="notice__message">
-              A lista desaparece desta aplicação. Os ficheiros já exportados continuam nas respectivas
-              pastas.
-            </div>
+            <div className="notice__title">{t('ui.history.confirmTitle')}</div>
+            <div className="notice__message">{t('ui.history.confirmMessage')}</div>
             <div className="notice__actions">
               <button
                 type="button"
@@ -65,10 +63,10 @@ export function HistoryScreen(): ReactNode {
                   void clearHistory();
                 }}
               >
-                Limpar lista
+                {t('ui.history.confirmClear')}
               </button>
               <button type="button" className="btn btn--quiet" onClick={() => setConfirming(false)}>
-                Cancelar
+                {t('ui.action.cancel')}
               </button>
             </div>
           </div>
@@ -81,12 +79,12 @@ export function HistoryScreen(): ReactNode {
             <Mark size={38} />
           </div>
           <div className="empty__lead">
-            <h2>Ainda não há exportações</h2>
-            <p>O primeiro vídeo que exportar aparece aqui, com a duração, o tamanho e a validação reais.</p>
+            <h2>{t('ui.history.emptyTitle')}</h2>
+            <p>{t('ui.history.emptyText')}</p>
           </div>
           <div className="empty__actions">
             <button type="button" className="btn btn--primary" onClick={() => setView('studio')}>
-              Ir para o estúdio
+              {t('ui.history.goStudio')}
               <ArrowRight size={15} aria-hidden="true" />
             </button>
           </div>
@@ -94,27 +92,29 @@ export function HistoryScreen(): ReactNode {
       ) : (
         <section className="panel" aria-labelledby="history-title">
           <div className="panel__head">
-            <h2 id="history-title">Exportações</h2>
-            <span className="chip">{formatNumber(completed)} concluídas</span>
-            {failed > 0 ? <span className="chip chip--error">{formatNumber(failed)} falhadas</span> : null}
+            <h2 id="history-title">{t('ui.history.panelTitle')}</h2>
+            <span className="chip">{t('ui.history.completedChip', { count: formatNumber(completed, 0, language) })}</span>
+            {failed > 0 ? (
+              <span className="chip chip--error">{t('ui.history.failedChip', { count: formatNumber(failed, 0, language) })}</span>
+            ) : null}
             <span className="spacer" />
-            <span className="panel__hint">Guardadas neste computador</span>
+            <span className="panel__hint">{t('ui.history.storedHint')}</span>
           </div>
           <div className="panel__body panel__body--table">
             <table className="table">
               <thead>
                 <tr>
-                  <th scope="col">Projeto</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Imagem</th>
+                  <th scope="col">{t('ui.meta.project')}</th>
+                  <th scope="col">{t('ui.meta.status')}</th>
+                  <th scope="col">{t('ui.meta.image')}</th>
                   <th scope="col" className="num">
-                    Duração
+                    {t('ui.meta.duration')}
                   </th>
                   <th scope="col" className="num">
-                    Tamanho
+                    {t('ui.meta.size')}
                   </th>
-                  <th scope="col">Data</th>
-                  <th scope="col" aria-label="Acções" />
+                  <th scope="col">{t('ui.meta.date')}</th>
+                  <th scope="col" aria-label={t('ui.history.actionsAria')} />
                 </tr>
               </thead>
               <tbody>
@@ -140,15 +140,17 @@ export function HistoryScreen(): ReactNode {
                         <span
                           className="status-label"
                           data-status={entry.status}
-                          title={entry.error?.detail ?? entry.error?.message}
+                          title={entry.error ? entry.error.detail ?? localizedErrorMessage(entry.error, t) : undefined}
                         >
-                          {STATUS_LABELS[entry.status]}
+                          {statusLabel(entry.status, t)}
                         </span>
                       </td>
                       <td className="mono tnum">{formatResolution(entry.width, entry.height)}</td>
-                      <td className="num tnum">{entry.durationSeconds > 0 ? formatSeconds(entry.durationSeconds) : '—'}</td>
+                      <td className="num tnum">
+                        {entry.durationSeconds > 0 ? formatSeconds(entry.durationSeconds, language) : '—'}
+                      </td>
                       <td className="num tnum">{entry.sizeBytes > 0 ? formatBytes(entry.sizeBytes) : '—'}</td>
-                      <td className="tnum">{formatDateTime(entry.startedAt)}</td>
+                      <td className="tnum">{formatDateTime(entry.startedAt, language)}</td>
                       <td>
                         <div className="row-actions">
                           {canOpen ? (
@@ -157,15 +159,15 @@ export function HistoryScreen(): ReactNode {
                                 type="button"
                                 className="btn btn--quiet"
                                 onClick={() => openResult(entry.id)}
-                                title={job ? 'Abrir o resultado completo' : 'Reproduzir o ficheiro guardado'}
+                                title={job ? t('ui.history.openResultTitle') : t('ui.history.openFileTitle')}
                               >
-                                Abrir
+                                {t('ui.action.open')}
                               </button>
                               <button
                                 type="button"
                                 className="btn btn--quiet btn--icon"
                                 onClick={() => void reveal(entry.outputPath)}
-                                aria-label={`Mostrar ${entry.fileName} no Explorador`}
+                                aria-label={t('ui.action.revealAria', { fileName: entry.fileName })}
                               >
                                 <FolderOpen size={14} aria-hidden="true" />
                               </button>

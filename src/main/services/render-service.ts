@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import fsp from 'node:fs/promises';
-import { BiframeError, serializeError } from '@shared/errors';
+import { BiframeError, isErrorCode, serializeError } from '@shared/errors';
 import { validateRenderSettings } from '@shared/settings';
+import { createTranslator, type Language } from '@shared/i18n';
 import type { HistoryEntry, RenderJob, RenderProgress, RenderSettings } from '@shared/types';
 import { prunePosterRoot, resolveOutputPath, runRenderPipeline } from '../../engine/render/pipeline';
 import { CancellationToken } from '../../engine/render/token';
@@ -110,6 +111,7 @@ export class RenderService {
 
     const jobId = randomUUID();
     const appSettings = this.options.settings.get();
+    const language = appSettings.language;
     const job: RenderJob = {
       id: jobId,
       projectId: project.id,
@@ -119,7 +121,7 @@ export class RenderService {
       progress: {
         jobId,
         phase: 'queued',
-        message: 'Na fila de renderização',
+        message: createTranslator(language)('progress.queued'),
         percent: null,
         elapsedMs: 0,
         diagnostics: [],
@@ -131,7 +133,7 @@ export class RenderService {
 
     const token = new CancellationToken();
     this.active = { jobId, token };
-    void this.run(job, validated.value, entryUrl, token, overwrite, appSettings.allowRemoteResources, appSettings.keepTempFiles);
+    void this.run(job, validated.value, entryUrl, token, overwrite, appSettings.allowRemoteResources, appSettings.keepTempFiles, language);
     return job;
   }
 
@@ -143,7 +145,9 @@ export class RenderService {
     overwrite: boolean,
     allowRemote: boolean,
     keepTempFiles: boolean,
+    language: Language,
   ): Promise<void> {
+    const t = createTranslator(language);
     const limits = this.options.settings.get().limits;
     const emitProgress = (progress: RenderProgress): void => {
       job.progress = progress;
@@ -156,6 +160,7 @@ export class RenderService {
           entryUrl,
           settings,
           limits,
+          language,
           tempRoot: this.options.paths.framesRoot,
           posterRoot: this.options.paths.postersRoot,
           allowRemote,
@@ -175,7 +180,7 @@ export class RenderService {
       job.progress = {
         jobId: job.id,
         phase: 'completed',
-        message: 'Vídeo pronto',
+        message: t('progress.completed'),
         percent: 100,
         elapsedMs: (job.finishedAt ?? Date.now()) - job.startedAt,
         diagnostics: result.diagnostics,
@@ -196,7 +201,11 @@ export class RenderService {
       job.progress = {
         ...job.progress,
         phase: cancelled ? 'cancelled' : 'failed',
-        message: cancelled ? 'Renderização cancelada' : serialized.title,
+        message: cancelled
+          ? t('progress.cancelled')
+          : isErrorCode(serialized.code)
+            ? t(`error.${serialized.code}.title`)
+            : serialized.title,
         percent: null,
       };
       this.logger.log(cancelled ? 'info' : 'error', 'render finished with an error', {
@@ -261,7 +270,7 @@ export class RenderService {
 
   async shutdown(): Promise<void> {
     if (this.active) {
-      this.active.token.cancel('a aplicação está a encerrar');
+      this.active.token.cancel('the application is shutting down');
       // Give the pipeline a moment to unwind so temporary files are removed.
       await new Promise((resolve) => setTimeout(resolve, 250));
     }

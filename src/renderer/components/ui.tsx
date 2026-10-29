@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import type { Diagnostic, RenderProgress, ValidationCheck } from '@shared/types';
 import { formatMilliseconds, formatNumber, pluralize } from '@shared/format';
-import type { AppNotice } from '../lib/store';
+import { useLanguage, useT, type AppNotice } from '../lib/store';
 
 export function Mark({ size = 20, className }: { size?: number; className?: string }): ReactNode {
   return (
@@ -49,6 +49,7 @@ export function Notice({
   notice: AppNotice;
   onDismiss?: () => void;
 }): ReactNode {
+  const t = useT();
   const Icon = noticeIcons[notice.kind];
   return (
     <div className="notice" data-kind={notice.kind} role={notice.kind === 'error' ? 'alert' : 'status'}>
@@ -66,7 +67,7 @@ export function Notice({
         ) : null}
       </div>
       {onDismiss ? (
-        <button type="button" className="btn btn--quiet btn--icon" onClick={onDismiss} aria-label="Fechar aviso">
+        <button type="button" className="btn btn--quiet btn--icon" onClick={onDismiss} aria-label={t('ui.notice.closeAria')}>
           <X size={15} aria-hidden="true" />
         </button>
       ) : null}
@@ -118,6 +119,8 @@ export function ProgressBlock({
   onCancel?: () => void;
   cancelling?: boolean;
 }): ReactNode {
+  const t = useT();
+  const language = useLanguage();
   const percent = progress.percent === null ? null : Math.max(0, Math.min(100, Math.round(progress.percent)));
   const frames = progress.frames;
   return (
@@ -144,7 +147,7 @@ export function ProgressBlock({
       <div className="progress__meta">
         {frames ? (
           <span className="tnum">
-            {formatNumber(frames.captured)} / {formatNumber(frames.target)} frames
+            {formatNumber(frames.captured, 0, language)} / {formatNumber(frames.target, 0, language)} frames
           </span>
         ) : (
           <span className="tnum">{formatMilliseconds(progress.elapsedMs)}</span>
@@ -160,7 +163,7 @@ export function ProgressBlock({
         <span className="spacer" />
         {onCancel ? (
           <button type="button" className="btn btn--quiet btn--danger" onClick={onCancel} disabled={cancelling}>
-            {cancelling ? 'A cancelar…' : 'Cancelar'}
+            {cancelling ? t('ui.action.cancelling') : t('ui.action.cancel')}
           </button>
         ) : null}
       </div>
@@ -175,13 +178,14 @@ const checkMarks: Record<ValidationCheck['status'], string> = {
 };
 
 export function CheckList({ checks }: { checks: ValidationCheck[] }): ReactNode {
+  const t = useT();
   return (
     <div className="checks">
       {checks.map((check) => (
         <div className="check" data-status={check.status} key={check.id}>
           <span
             className="check__mark"
-            aria-label={check.status === 'pass' ? 'Passou' : check.status === 'warn' ? 'Aviso' : 'Falhou'}
+            aria-label={check.status === 'pass' ? t('ui.check.pass') : check.status === 'warn' ? t('ui.check.warn') : t('ui.check.fail')}
           >
             {checkMarks[check.status]}
           </span>
@@ -202,10 +206,11 @@ export function DiagnosticList({
   diagnostics: Diagnostic[];
   emptyMessage?: string;
 }): ReactNode {
+  const t = useT();
   if (diagnostics.length === 0) {
     return (
       <p className="calm">
-        {emptyMessage ?? 'Sem avisos. A página carregou sem erros assinaláveis.'}
+        {emptyMessage ?? t('ui.diagnostics.empty')}
       </p>
     );
   }
@@ -237,28 +242,39 @@ export function DiagnosticList({
 }
 
 export function DiagnosticSummary({ diagnostics }: { diagnostics: Diagnostic[] }): ReactNode {
+  const t = useT();
   const errors = diagnostics.filter((item) => item.severity === 'error').length;
   const warnings = diagnostics.filter((item) => item.severity === 'warning').length;
-  if (diagnostics.length === 0) return <span className="chip">Sem avisos</span>;
+  if (diagnostics.length === 0) return <span className="chip">{t('ui.diagnostics.none')}</span>;
   if (errors > 0) {
     return (
       <span className="chip chip--error">
-        {errors} {pluralize(errors, 'erro', 'erros')}
+        {errors} {pluralize(errors, t('ui.diagnostics.error.one'), t('ui.diagnostics.error.many'))}
       </span>
     );
   }
   if (warnings > 0) {
     return (
       <span className="chip chip--warning">
-        {warnings} {pluralize(warnings, 'aviso', 'avisos')}
+        {warnings} {pluralize(warnings, t('ui.diagnostics.warning.one'), t('ui.diagnostics.warning.many'))}
       </span>
     );
   }
-  return <span className="chip">{diagnostics.length} {pluralize(diagnostics.length, 'nota', 'notas')}</span>;
+  return (
+    <span className="chip">
+      {diagnostics.length} {pluralize(diagnostics.length, t('ui.diagnostics.note.one'), t('ui.diagnostics.note.many'))}
+    </span>
+  );
 }
 
 export function StatusChip({ status }: { status: 'ready' | 'broken' | 'checking' }): ReactNode {
-  const label = status === 'ready' ? 'Motor pronto' : status === 'checking' ? 'A verificar…' : 'Motor incompleto';
+  const t = useT();
+  const label =
+    status === 'ready'
+      ? t('ui.engine.status.ready')
+      : status === 'checking'
+        ? t('ui.engine.status.checkingShort')
+        : t('ui.engine.status.incomplete');
   return (
     <span className="chip" data-tone={status === 'ready' ? 'ok' : status === 'broken' ? 'bad' : 'muted'}>
       <span className="status-dot" data-state={status} aria-hidden="true" />
