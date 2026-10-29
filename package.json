@@ -1,6 +1,6 @@
 {
   "name": "biframe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Biframe — turn animated web pages into video files. From web to video.",
   "license": "MIT",
