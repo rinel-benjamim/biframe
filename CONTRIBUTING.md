@@ -145,7 +145,7 @@ node scripts/dev/smoke-package.mjs
 
 The smoke test imports the packaged example, exports a 720p clip and probes it with the bundled FFprobe. If you change packaging, binary resolution, the example or the main entry point, run it.
 
-The NSIS installer (`npm run build:win`) is built for releases (`Biframe Setup 0.1.0.exe`, signed with the local signtool certificate chain) but is **not covered by the automated smoke test**, which drives the unpacked build instead. macOS/Linux targets are also unverified. Do not present them as supported.
+The NSIS installer (`npm run build:win`) is built for releases (`Biframe Setup <version>.exe`) and is **not signed**, so SmartScreen warns on first run. It is **not covered by the automated smoke test**, which drives the unpacked build instead. macOS/Linux targets are also unverified. Do not present them as supported.
 
 ## Documentation and ADRs
 
