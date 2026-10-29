@@ -30,7 +30,7 @@ Resolution order in `src/engine/media/binaries.ts`:
 2. the bundled package path, translated from `app.asar` to `app.asar.unpacked` when packaged;
 3. a system binary on `PATH`, as a last resort.
 
-Every resolved binary is executed with `-version` and reported in Definições. If none exists, `ENCODER_MISSING` is raised with a clear message. Binaries run as child processes with an argument array, `windowsHide`, timeouts, an abort signal and bounded output buffers. No shell is used.
+Every resolved binary is executed with `-version` and reported in Definições (*Settings*). If none exists, `ENCODER_MISSING` is raised with a clear message. Binaries run as child processes with an argument array, `windowsHide`, timeouts, an abort signal and bounded output buffers. No shell is used.
 
 ## Options considered
 

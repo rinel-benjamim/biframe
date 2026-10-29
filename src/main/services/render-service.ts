@@ -92,8 +92,8 @@ export class RenderService {
       throw new BiframeError('PROJECT_NOT_FOUND', { detail: 'no project is open' });
     }
 
-    // Fail before creating a job so the interface can offer "Substituir
-    // ficheiro" instead of reporting a failed render. The pipeline repeats
+    // Fail before creating a job so the interface can ask for overwrite
+    // confirmation instead of reporting a failed render. The pipeline repeats
     // this check to close the race between the prompt and the encoder.
     const overwrite = options.overwrite === true;
     if (!overwrite) {

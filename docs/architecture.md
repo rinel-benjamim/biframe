@@ -88,7 +88,7 @@ Services:
 9. `ffprobe` reads the actual file. Nine checks determine success. Five JPEG stills are extracted from the encoded file for the result view.
 10. The result is stored on the job, appended to history (including failures and cancellations), and the active slot is released.
 
-A failed render removes the partially written MP4. A cancelled render follows the same path and reports `RENDER_CANCELLED`. Temporary frames are removed unless **Manter frames intermédios** is enabled.
+A failed render removes the partially written MP4. A cancelled render follows the same path and reports `RENDER_CANCELLED`. Temporary frames are removed unless **Manter frames intermédios** (*Keep intermediate frames*) is enabled.
 
 ## IPC contract
 

@@ -14,7 +14,7 @@ The protocol is read-only from the page's perspective: Biframe never injects `wi
 </script>
 ```
 
-When **Duração: Automática** is selected, the engine uses `36.5` seconds, clamped to the configured maximum (600 s by default). The page is still captured in real time; the declaration tells the engine when to stop, not how fast to render.
+When **Duração: Automática** (*Automatic duration*) is selected, the engine uses `36.5` seconds, clamped to the configured maximum (600 s by default). The page is still captured in real time; the declaration tells the engine when to stop, not how fast to render.
 
 The value must be a finite number greater than zero. Anything else is ignored and treated as absent, with a diagnostic when the descriptor is present but unusable.
 

@@ -132,7 +132,7 @@ const AppActionsContext = createContext<AppActions | null>(null);
 /**
  * The translator the whole interface wears. It lives in the store rather than
  * in a separate provider because the actions (notices, error titles) need it
- * too, and it must change the moment Definições changes the language.
+ * too, and it must change the moment the settings screen changes the language.
  */
 const TranslatorContext = createContext<Translator>(createTranslator(DEFAULT_LANGUAGE));
 
@@ -304,7 +304,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         draft: previous.draft ? { ...previous.draft, ...event.job.settings, outputDir: previous.draft.outputDir } : previous.draft,
       }));
       if (completed) {
-        // The result screen is the confirmation; a second "Vídeo pronto"
+        // The result screen is the confirmation; a second "video ready"
         // toast would cover the filmstrip it points to.
         void refreshHistory();
       } else if (event.job.status === 'cancelled') {

@@ -7,7 +7,7 @@ This document covers setup, the rules that are not negotiable, and what a change
 ## Before you start
 
 - Biframe 0.1 targets **Windows 10/11 x64** for packaging. The source is platform-neutral, but macOS and Linux builds are not verified.
-- The interface defaults to **Portuguese (pt-PT)** and can be switched to English in Definições → Idioma. Every user-facing string in the engine, the main process and the interface lives in the shared catalog in `src/shared/i18n/`; code, comments, commit messages, documentation and identifiers are in **English**.
+- The interface defaults to **Portuguese (pt-PT)** and can be switched to English in Definições → Idioma. Every user-facing string in the engine, the main process and the interface lives in the shared catalog in `src/shared/i18n/`; code, comments, commit messages, documentation and identifiers are in **English**. Documents quote interface labels as they appear in the default Portuguese interface, glossed in italics: **Manter frames intermédios** (*Keep intermediate frames*).
 - Releases are published on the [GitHub Releases page](https://github.com/rinel-benjamim/biframe/releases). Do not claim a feature is shipped, signed or available for download unless it is.
 - By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Security reports do not belong in a public issue. See [SECURITY.md](SECURITY.md).
